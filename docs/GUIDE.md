@@ -154,6 +154,7 @@ core update                      # the newest release: download, verify, flash
 core flash core.ipod             # a particular image, e.g. one downloaded from a release
 core backup                      # the whole firmware partition to a file
 core doctor                      # read-only check of the device and its library
+core doctor --boot               # did the iPod start the image the last flash wrote?
 ```
 
 `update` reads the latest GitHub release, downloads the image, checks it against its own checksum,
@@ -168,6 +169,17 @@ Every flash backs the whole firmware partition up first, writes only this firmwa
 one directory row describing it — the Apple preamble, the partition table and Apple's other images
 are never touched — and re-reads what it wrote to compare. `--dry-run` prints the plan and opens
 nothing for writing.
+
+**Did it boot?** The read-back proves the bytes, not the boot. To prove the boot: unplug the iPod
+and let it start, plug it back in, and run `core doctor --boot` (or look at **Last boot** on the
+app's Summary tab). Every flash leaves a small note, `COREFLSH.TXT`, on the music volume: which
+image it wrote and where the iPod's own log (`CORELOG.BIN`) stood at that moment. The firmware adds
+to that log every time it starts, so a start newer than the note is a start of the new image.
+`--boot` prints the last start and its time, the build it ran, whether the library index loaded,
+and whether that session ended cleanly (sleep, standby, disk mode) or just stopped (a reset, a
+crash, a flat battery). It exits 1 while the iPod has an image it has not started yet — "flashed
+v0.2.2, last boot ran v0.2.1 — the iPod has not restarted since". An image written by an older
+`core` or another tool has no note, so the build is reported as unknown (a WARN, not a FAIL).
 
 **What is verified.** The iPod Video 5.5G 80 GB is the only model this firmware has ever booted,
 and the only one the app knows. Its flash path has been run on that device: the whole-partition

@@ -256,6 +256,9 @@ func (b *RealBackend) Refresh(ctx context.Context) (Device, Library, error) {
 	d.ElevationAdviceNeeded = !d.Elevated && strings.Contains(strings.ToLower(d.Err), "denied")
 
 	vol := doctor.CheckVolume(d.Volume)
+	if d.Volume != "" {
+		d.Boot, d.BootStale = bootWords(doctor.CheckBoot(d.Volume, dev, vol, time.Now()), time.Local)
+	}
 	lib := Library{
 		Present:     vol.Present,
 		Songs:       vol.Songs,

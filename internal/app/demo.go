@@ -45,6 +45,7 @@ func DemoState() State {
 			Free:     54_975_581_388,
 			Capacity: 79_993_765_888,
 			Firmware: "v0.2.1 (build 2026-09-14T22:41:07Z g928727d)",
+			Boot:     "Core v0.2.1, started Sep 24 at 20:41",
 			Installed: fwpart.Installed{
 				Kind: fwpart.Core, Version: "v0.2.1", BuildID: "2026-09-14T22:41:07Z g928727d",
 				Description: "Core v0.2.1 (build 2026-09-14T22:41:07Z g928727d)",
