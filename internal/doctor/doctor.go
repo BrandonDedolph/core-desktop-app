@@ -119,6 +119,10 @@ type DeviceReport struct {
 	// the sentence behind it.
 	OSOSOK   bool
 	OSOSNote string
+	// Image is the OSOS row and the version marker, for the boot
+	// section's comparison with the flash record. Image.Known is false
+	// when the row was not read.
+	Image ImageFacts
 	// Err is the one-line reason there is no device, when Found is
 	// false.
 	Err    string
@@ -181,6 +185,7 @@ func CheckDevice(d DeviceDeps) DeviceReport {
 		rep.Checks = r.checks
 		return rep
 	}
+	rep.Image = ImageFacts{Known: true, Length: osos.Length, Checksum: osos.Checksum}
 	if err := fwpart.VerifyEntry(p, osos); err != nil {
 		rep.OSOSNote = fmt.Sprintf("%d bytes, checksum %#08x does NOT verify: %v",
 			osos.Length, osos.Checksum, err)
@@ -206,6 +211,7 @@ func CheckDevice(d DeviceDeps) DeviceReport {
 	if _, _, found := fwpart.FindVersion(body); found && fwpart.CountVersionMarkers(body) == 1 {
 		state = OK
 	}
+	rep.Image.Version, _, _ = fwpart.FindVersion(body)
 	rep.Firmware = fwpart.VersionText(body)
 	r.line(state, "firmware", "%s", rep.Firmware)
 	rep.Checks = r.checks
