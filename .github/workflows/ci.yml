@@ -25,6 +25,14 @@ jobs:
   cli:
     name: Go CLI
     runs-on: ubuntu-latest
+    # The firmware-parity tests (internal/testutil) check this module's byte
+    # layouts against core-firmware's C and Python. They SKIP without
+    # CORE_REPO, and after the repository split they did exactly that on
+    # every push with nothing to show for it. CORE_REQUIRE_PARITY=1 makes such
+    # a skip a failure here, so parity cannot quietly stop being checked again.
+    env:
+      CORE_REPO: ${{ github.workspace }}/_core-firmware
+      CORE_REQUIRE_PARITY: "1"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,6 +41,19 @@ jobs:
           # depth-1 clone has no tags at all, so the stamp would silently
           # degrade to a bare SHA even once a release tag exists.
           fetch-depth: 0
+
+      # The firmware tree the parity tests read, at its default branch: a
+      # firmware change that breaks a layout this app writes should turn this
+      # repository red on its next run. The leading underscore keeps it out
+      # of `go ... ./...`, which ignores _-prefixed directories, and it has no
+      # .go files for gofmt to find; `git describe --dirty` ignores untracked
+      # files, so the version stamp is unaffected.
+      - name: Check out core-firmware for the parity tests
+        uses: actions/checkout@v4
+        with:
+          repository: BrandonDedolph/core-firmware
+          ref: main
+          path: _core-firmware
 
       - uses: actions/setup-go@v5
         with:
@@ -63,13 +84,17 @@ jobs:
       # the difference between CI checking the model and CI checking the
       # window. libasound2-dev is internal/player's: oto's Linux backend
       # is cgo against ALSA, so every build of the module needs it.
+      # ffmpeg is for the parity tests: build_index.py and the duration
+      # checks read the files through ffprobe, and without it they would
+      # fail under CORE_REQUIRE_PARITY.
       - name: Install the Gio GUI build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-dev \
             libxkbcommon-x11-dev libgles2-mesa-dev libegl1-mesa-dev \
-            libffi-dev libxcursor-dev libvulkan-dev libasound2-dev pkg-config
+            libffi-dev libxcursor-dev libvulkan-dev libasound2-dev pkg-config \
+            ffmpeg
 
       - name: Build
         run: go build ./...

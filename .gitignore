@@ -25,3 +25,6 @@ __pycache__/
 
 # WSL Zone.Identifier alternate-stream files
 *:Zone.Identifier
+
+# The core-firmware checkout CI makes for the parity tests (ci.yml)
+/_core-firmware/
