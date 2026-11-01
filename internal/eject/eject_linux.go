@@ -12,6 +12,16 @@ import (
 	"strings"
 )
 
+// The seams the tests replace: the programs this file runs, how it finds
+// them, and the mount table it reads. Production values are the real ones.
+var (
+	lookPath = exec.LookPath
+	runCmd   = func(name string, args ...string) ([]byte, error) {
+		return exec.Command(name, args...).CombinedOutput()
+	}
+	mountInfoPath = "/proc/self/mountinfo"
+)
+
 // ejectVolume on Linux: flush, then hand the volume to udisks, which is what
 // the desktop's own "safely remove" button uses. Doing it by hand (umount +
 // sending a START STOP UNIT to the disk) needs root; udisks is the thing that
@@ -29,7 +39,7 @@ func ejectVolume(w io.Writer, target string) error {
 
 	flushDisks(w)
 
-	udisks, lookErr := exec.LookPath("udisksctl")
+	udisks, lookErr := lookPath("udisksctl")
 	if lookErr != nil {
 		fmt.Fprintf(w, "%s: flushed. udisksctl is not installed, so run these yourself:\n", dev)
 		fmt.Fprintf(w, "  udisksctl unmount -b %s\n", dev)
@@ -37,7 +47,7 @@ func ejectVolume(w io.Writer, target string) error {
 		return fmt.Errorf("udisksctl not found; the volume was flushed but not ejected")
 	}
 
-	if out, err := exec.Command(udisks, "unmount", "-b", dev).CombinedOutput(); err != nil {
+	if out, err := runCmd(udisks, "unmount", "-b", dev); err != nil {
 		msg := strings.TrimSpace(string(out))
 		// "not mounted" is a fine place to be: carry on to the power-off.
 		if !strings.Contains(strings.ToLower(msg), "not mounted") {
@@ -46,7 +56,7 @@ func ejectVolume(w io.Writer, target string) error {
 	}
 	fmt.Fprintf(w, "%s: unmounted.\n", dev)
 
-	if out, err := exec.Command(udisks, "power-off", "-b", disk).CombinedOutput(); err != nil {
+	if out, err := runCmd(udisks, "power-off", "-b", disk); err != nil {
 		// The volume is unmounted, which is the part that protects the data.
 		fmt.Fprintf(w, "%s: could not power off (%v: %s) — the volume is unmounted, so it is safe to unplug.\n",
 			disk, err, strings.TrimSpace(string(out)))
@@ -60,8 +70,8 @@ func ejectVolume(w io.Writer, target string) error {
 // rather than the syscall, because syscall.Sync has a different signature on
 // Linux and macOS and this is not worth a build tag.
 func flushDisks(w io.Writer) {
-	if p, err := exec.LookPath("sync"); err == nil {
-		if err := exec.Command(p).Run(); err != nil {
+	if p, err := lookPath("sync"); err == nil {
+		if _, err := runCmd(p); err != nil {
 			fmt.Fprintf(w, "warning: sync failed (%v)\n", err)
 		}
 	}
@@ -93,7 +103,7 @@ func resolveDevice(target string) (string, error) {
 // deviceForMount reads /proc/self/mountinfo and returns the source device of
 // the mount at point.
 func deviceForMount(point string) string {
-	f, err := os.Open("/proc/self/mountinfo")
+	f, err := os.Open(mountInfoPath)
 	if err != nil {
 		return ""
 	}
