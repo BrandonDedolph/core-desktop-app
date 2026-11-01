@@ -18,9 +18,10 @@ import (
 	"gioui.org/widget/material"
 )
 
-// The iPod tab: this iPod, in five rows a person can read — its name, its
-// firmware, how full it is, what it is, and where its backups are — each
-// with the one or two things that can be done about it. Everything that is a
+// The iPod tab: this iPod, in rows a person can read — its name, its
+// firmware and whether it has started it, how full it is, what it is, and
+// where its backups are — each with the one or two things that can be done
+// about it. Everything that is a
 // register-level fact (the disk path, the OSOS entry, the device files, the
 // image flash) is under Advanced, closed by default. The log is the drawer's,
 // as on every screen.
@@ -111,6 +112,14 @@ func (u *UI) ipodRows() []ipodRow {
 		fw.actions = []btn{{&u.checkBtn, "Check", false, !busy}}
 	}
 	rows = append(rows, fw)
+
+	if d.Boot != "" {
+		boot := ipodRow{label: "Last boot", value: d.Boot}
+		if d.BootStale {
+			boot.sub = "unplug the iPod and let it start, then plug it back in to check again"
+		}
+		rows = append(rows, boot)
+	}
 
 	st := ipodRow{label: "Storage", value: "not read yet"}
 	if d.Capacity > 0 {

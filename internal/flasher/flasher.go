@@ -50,7 +50,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BrandonDedolph/core-desktop-app/internal/devicefs"
 	"github.com/BrandonDedolph/core-desktop-app/internal/disk"
+	"github.com/BrandonDedolph/core-desktop-app/internal/doctor"
 	"github.com/BrandonDedolph/core-desktop-app/internal/firmware"
 	"github.com/BrandonDedolph/core-desktop-app/internal/fwpart"
 )
@@ -120,6 +122,14 @@ type Deps struct {
 	Now func() time.Time
 	// ConfigDir is os.UserConfigDir.
 	ConfigDir func() (string, error)
+	// NoteFlash writes the flash record onto the music volume
+	// (devicefs.WriteFlashRecord) after a verified image write, so
+	// `core doctor --boot` can later tell whether the iPod has started
+	// that image. Returns the path written.
+	NoteFlash func(volume string, rec devicefs.FlashRecord) (string, error)
+	// LogState reads the volume's CORELOG.BIN for the record: its file id
+	// and newest boot id, ok false when there is no valid log.
+	LogState func(volume string) (fileID uint32, boot uint16, ok bool)
 }
 
 func (d *Deps) setDefaults() {
@@ -155,6 +165,18 @@ func (d *Deps) setDefaults() {
 	}
 	if d.ConfigDir == nil {
 		d.ConfigDir = os.UserConfigDir
+	}
+	if d.NoteFlash == nil {
+		d.NoteFlash = devicefs.WriteFlashRecord
+	}
+	if d.LogState == nil {
+		d.LogState = func(volume string) (uint32, uint16, bool) {
+			b, err := os.ReadFile(filepath.Join(volume, devicefs.LogName))
+			if err != nil {
+				return 0, 0, false
+			}
+			return devicefs.LogStateOf(b)
+		}
 	}
 }
 
@@ -993,9 +1015,47 @@ func (f *flash) writeAndVerify(ctx context.Context) error {
 		if line := f.keptFirmwareLine(); line != "" {
 			fmt.Fprintf(f.out, "%s\n", line)
 		}
+		f.noteFlash()
 		return nil
 	}
 	return f.failure(writeErr, verifyErr)
+}
+
+// noteFlash leaves the flash record on the music volume: what was written
+// and where the device's log stood, which is what lets `core doctor --boot`
+// tell a boot of this image from a boot of the one before. It never fails
+// the flash — the image is written and verified; a missing note only means
+// that later check cannot name the build.
+//
+// Only an image write is noted. A restore puts back whatever the backup
+// held, and the record of the write before it then names a different image,
+// which the boot check already reports as "cannot tell".
+func (f *flash) noteFlash() {
+	if f.res.Mode != ModeOSOS || f.img == nil {
+		return
+	}
+	volume := doctor.VolumeOf(f.pod, true)
+	if st, err := os.Stat(volume); volume == "" || err != nil || !st.IsDir() {
+		fmt.Fprintf(f.out, "boot check   not noted: no mounted music volume to note the flash on\n")
+		return
+	}
+	rec := devicefs.FlashRecord{
+		Length:          f.newEntry.Length,
+		Checksum:        f.newEntry.Checksum,
+		Replaced:        f.res.Installed.Description,
+		ReplacedVersion: f.res.Installed.Version,
+		Flashed:         f.d.Now().UTC(),
+	}
+	rec.Version, rec.BuildID, _ = fwpart.FindVersion(f.img.image)
+	rec.LogID, rec.LogBoot, rec.LogKnown = f.d.LogState(volume)
+	path, err := f.d.NoteFlash(volume, rec)
+	if err != nil {
+		fmt.Fprintf(f.out, "boot check   not noted (%v): `core doctor --boot` will not be "+
+			"able to name the build the iPod boots\n", err)
+		return
+	}
+	fmt.Fprintf(f.out, "boot check   noted in %s — once the iPod has restarted, "+
+		"`core doctor --boot` says whether it booted this image\n", path)
 }
 
 func (f *flash) doWrite(ctx context.Context) error {

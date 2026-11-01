@@ -184,8 +184,14 @@ type Device struct {
 	// volume, not derived from the disk's size, which also counts the
 	// firmware partition and the FAT. Both zero when nothing has read
 	// them.
-	Free, Capacity        int64
-	Firmware              string
+	Free, Capacity int64
+	Firmware       string
+	// Boot is the Summary tab's "Last boot" line — the boot evidence
+	// doctor.CheckBoot found in the iPod's log, in words (bootWords);
+	// empty when there is no log to read. BootStale says the iPod has an
+	// image it has not started yet.
+	Boot                  string
+	BootStale             bool
 	OSOSOK                bool
 	OSOSNote              string
 	Err                   string

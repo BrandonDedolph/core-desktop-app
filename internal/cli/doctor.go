@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/BrandonDedolph/core-desktop-app/internal/disk"
 	"github.com/BrandonDedolph/core-desktop-app/internal/doctor"
@@ -27,7 +28,10 @@ import (
 // is the device selector, the column widths and the exit code.
 
 func newDoctorCmd() *cobra.Command {
-	var volume string
+	var (
+		volume string
+		boot   bool
+	)
 	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Read-only health check of a connected iPod and its library volume",
@@ -37,7 +41,13 @@ firmware has actually run on, the firmware partition's image directory,
 the installed image's checksum and version, and then the FAT volume —
 Music/, CORELIB.IDX (header, CRC, record count and the three caps past
 which the device silently drops), CORECFG.DAT, CORELOG.BIN and the
-playlist folder.
+playlist folder — and last, whether the iPod has booted the image on it:
+the newest boot in CORELOG.BIN, held against the note the last flash
+left in COREFLSH.TXT.
+
+--boot prints only that last section and exits 1 when the iPod has an
+image it has not started yet. The bench check after a flash is: unplug
+the iPod, let it start, plug it back in, then run "core doctor --boot".
 
 Nothing is written, opened for writing, or repaired. The exit status is
 1 if any check FAILs and 0 otherwise, so this is usable as a gate.
@@ -48,17 +58,22 @@ with it, the device half is skipped when no iPod is attached, which is
 how the library half can be checked from a copy on disk.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDoctor(cmd, strings.TrimSpace(volume))
+			return runDoctor(cmd, strings.TrimSpace(volume), boot)
 		},
 	}
+	cmd.Flags().BoolVar(&boot, "boot", false,
+		"Print only the boot evidence: whether the iPod has started the image on it")
 	cmd.Flags().StringVar(&volume, "volume", "",
 		"The mounted FAT volume to check (default: the one the connected iPod reports)")
 	return cmd
 }
 
-func runDoctor(cmd *cobra.Command, volume string) error {
+func runDoctor(cmd *cobra.Command, volume string, bootOnly bool) error {
 	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "core doctor — read-only\n")
+	if bootOnly {
+		return runBootCheck(cmd, volume)
+	}
 
 	// A named --volume turns the device half's misses into SKIPs:
 	// checking a library on a volume with the iPod unplugged is a thing
@@ -86,7 +101,45 @@ func runDoctor(cmd *cobra.Command, volume string) error {
 	printSection(out, title)
 	printChecks(out, vol.Checks)
 
-	counts := doctor.Counts(append(append([]doctor.Check{}, dev.Checks...), vol.Checks...))
+	boot := doctor.CheckBoot(volume, dev, vol, time.Now())
+	printSection(out, "boot")
+	printChecks(out, boot.Checks)
+
+	all := append(append(append([]doctor.Check{}, dev.Checks...), vol.Checks...), boot.Checks...)
+	return summarize(out, "core doctor", all)
+}
+
+// runBootCheck is `core doctor --boot`: the device and volume halves are
+// still read — the boot section compares against the image on the device
+// and the index on the volume — but only the boot lines are printed, and
+// only they decide the exit status. A device that cannot be read is not a
+// failure here; the boot section says what it could not compare.
+func runBootCheck(cmd *cobra.Command, volume string) error {
+	out := cmd.OutOrStdout()
+	dev := doctor.CheckDevice(doctor.DeviceDeps{
+		Select:  func() (disk.IPod, error) { return selectDevice(cmd) },
+		Open:    func(path string) (disk.Handle, error) { return openRO(path) },
+		Missing: doctor.Skip,
+	})
+	if volume == "" {
+		volume = doctor.VolumeOf(dev.Pod, dev.Found)
+	}
+	vol := doctor.CheckVolume(volume)
+	boot := doctor.CheckBoot(volume, dev, vol, time.Now())
+	title := "boot"
+	if volume != "" {
+		title = "boot  " + volume
+	}
+	printSection(out, title)
+	printChecks(out, boot.Checks)
+	if !dev.Image.Known && dev.Err != "" {
+		fmt.Fprintf(out, "  (the firmware partition was not read: %s)\n", dev.Err)
+	}
+	return summarize(out, "core doctor --boot", boot.Checks)
+}
+
+func summarize(out io.Writer, name string, all []doctor.Check) error {
+	counts := doctor.Counts(all)
 	fmt.Fprintf(out, "\nsummary: %d OK, %d WARN, %d FAIL",
 		counts[doctor.OK], counts[doctor.Warn], counts[doctor.Fail])
 	if n := counts[doctor.Skip]; n > 0 {
@@ -94,7 +147,7 @@ func runDoctor(cmd *cobra.Command, volume string) error {
 	}
 	fmt.Fprintln(out)
 	if n := counts[doctor.Fail]; n > 0 {
-		return fmt.Errorf("core doctor: %d check(s) failed", n)
+		return fmt.Errorf("%s: %d check(s) failed", name, n)
 	}
 	return nil
 }
