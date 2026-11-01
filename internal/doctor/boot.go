@@ -68,6 +68,14 @@ type BootFacts struct {
 	// End is the last of those paths the text names: "disk mode",
 	// "sleep", "standby", "low battery", "battery empty"; "" when none.
 	End string
+	// Version and BuildID are what the boot said of itself in
+	// "core: version <tag> build <id>" (firmware 39fdaf9 and later); ""
+	// for older firmware, whose log never named its build.
+	Version, BuildID string
+	// Counted: the boot printed "core: library songs N albums M ms T"
+	// once the library was in, and Songs/Albums hold those counts.
+	Counted       bool
+	Songs, Albums int
 }
 
 // The firmware's lines this file reads, exactly as kernel/main.c and
@@ -77,6 +85,8 @@ const (
 	lineTimesync = "core: timesync host "
 	lineIdxRej   = "idx: rejected ("
 	linePanic    = "*** PANIC: "
+	lineVersion  = "core: version "
+	lineLibrary  = "core: library songs "
 )
 
 // endLines maps the narration of each flushing exit to the words used for it.
@@ -135,6 +145,23 @@ func parseBootText(f *BootFacts, s string) {
 		case strings.HasPrefix(line, lineIdxRej):
 			why := strings.TrimPrefix(line, lineIdxRej)
 			f.IndexRejected = strings.TrimSuffix(why, ")")
+		case strings.HasPrefix(line, lineVersion):
+			// "core: version v0.2.2 build v0.2.2-5-g39fdaf9"
+			if w := strings.Fields(line); len(w) >= 3 {
+				f.Version = w[2]
+				if len(w) >= 5 && w[3] == "build" {
+					f.BuildID = w[4]
+				}
+			}
+		case strings.HasPrefix(line, lineLibrary):
+			// "core: library songs 0000038B albums 00000065 ms 00000ABC"
+			if w := strings.Fields(line); len(w) >= 6 && w[4] == "albums" {
+				songs, err1 := strconv.ParseUint(w[3], 16, 32)
+				albums, err2 := strconv.ParseUint(w[5], 16, 32)
+				if err1 == nil && err2 == nil {
+					f.Counted, f.Songs, f.Albums = true, int(songs), int(albums)
+				}
+			}
 		case strings.HasPrefix(line, linePanic):
 			f.Panic = strings.TrimSpace(strings.TrimPrefix(line, linePanic))
 			if i := strings.Index(f.Panic, " ("); i > 0 {
@@ -277,48 +304,52 @@ func EvaluateBoot(in BootInputs) BootReport {
 	}
 
 	rep.Flashed = versionWords(in.Record.Version)
-	since, sinceKnown := false, false
-	switch {
-	case in.RecordErr != nil:
-		r.line(Warn, "firmware", "%s could not be read (%v); cannot tell which build "+
-			"the last boot ran", devicefs.FlashRecordName, in.RecordErr)
-	case !in.RecordFound:
-		r.line(Warn, "firmware", "no flash record (%s): this image was written by an "+
-			"older core or another tool, so nothing says which build the last boot "+
-			"ran%s", devicefs.FlashRecordName, imageTail(in.Image))
-	case in.Image.Known && (in.Image.Length != in.Record.Length ||
-		in.Image.Checksum != in.Record.Checksum):
-		r.line(Warn, "firmware", "%s describes another image (%d bytes, checksum %#08x) "+
-			"than the one on the iPod (%d bytes, checksum %#08x); cannot tell which "+
-			"build the last boot ran", devicefs.FlashRecordName, in.Record.Length,
-			in.Record.Checksum, in.Image.Length, in.Image.Checksum)
-	case !logOK:
-		r.line(Warn, "firmware", "flashed %s on %s; with no log, nothing says whether "+
-			"the iPod has started it", rep.Flashed, stamp(in.Record.Flashed))
-	default:
-		since, sinceKnown = bootedSince(in.Record, ring, rep.Booted, boot), true
-	}
-	unchecked := ""
-	if !in.Image.Known {
-		unchecked = " (the image on the iPod was not read to confirm it)"
-	}
-	switch {
-	case sinceKnown && since:
-		rep.State, rep.Version = BootCurrent, rep.Flashed
-		r.line(OK, "firmware", "Core %s — flashed %s, booted since%s",
-			rep.Flashed, stamp(in.Record.Flashed), unchecked)
-	case sinceKnown:
-		rep.State = BootNotYet
-		if was := versionWords(in.Record.ReplacedVersion); rep.Booted && in.Record.ReplacedVersion != "" {
-			rep.Version = in.Record.ReplacedVersion
-			r.line(Fail, "firmware", "flashed %s on %s, last boot ran %s — the iPod has "+
-				"not restarted since%s", rep.Flashed, stamp(in.Record.Flashed), was, unchecked)
-		} else {
-			r.line(Fail, "firmware", "flashed %s on %s, no boot logged since — the iPod "+
-				"has not started it yet%s", rep.Flashed, stamp(in.Record.Flashed), unchecked)
+	if rep.Booted && boot.Version != "" {
+		firmwareFromLog(r, &rep, boot, in)
+	} else {
+		since, sinceKnown := false, false
+		switch {
+		case in.RecordErr != nil:
+			r.line(Warn, "firmware", "%s could not be read (%v); cannot tell which build "+
+				"the last boot ran", devicefs.FlashRecordName, in.RecordErr)
+		case !in.RecordFound:
+			r.line(Warn, "firmware", "no flash record (%s): this image was written by an "+
+				"older core or another tool, so nothing says which build the last boot "+
+				"ran%s", devicefs.FlashRecordName, imageTail(in.Image))
+		case in.Image.Known && (in.Image.Length != in.Record.Length ||
+			in.Image.Checksum != in.Record.Checksum):
+			r.line(Warn, "firmware", "%s describes another image (%d bytes, checksum %#08x) "+
+				"than the one on the iPod (%d bytes, checksum %#08x); cannot tell which "+
+				"build the last boot ran", devicefs.FlashRecordName, in.Record.Length,
+				in.Record.Checksum, in.Image.Length, in.Image.Checksum)
+		case !logOK:
+			r.line(Warn, "firmware", "flashed %s on %s; with no log, nothing says whether "+
+				"the iPod has started it", rep.Flashed, stamp(in.Record.Flashed))
+		default:
+			since, sinceKnown = bootedSince(in.Record, ring, rep.Booted, boot), true
 		}
-	case rep.Booted:
-		rep.State = BootUnknownBuild
+		unchecked := ""
+		if !in.Image.Known {
+			unchecked = " (the image on the iPod was not read to confirm it)"
+		}
+		switch {
+		case sinceKnown && since:
+			rep.State, rep.Version = BootCurrent, rep.Flashed
+			r.line(OK, "firmware", "Core %s — flashed %s, booted since%s",
+				rep.Flashed, stamp(in.Record.Flashed), unchecked)
+		case sinceKnown:
+			rep.State = BootNotYet
+			if was := versionWords(in.Record.ReplacedVersion); rep.Booted && in.Record.ReplacedVersion != "" {
+				rep.Version = in.Record.ReplacedVersion
+				r.line(Fail, "firmware", "flashed %s on %s, last boot ran %s — the iPod has "+
+					"not restarted since%s", rep.Flashed, stamp(in.Record.Flashed), was, unchecked)
+			} else {
+				r.line(Fail, "firmware", "flashed %s on %s, no boot logged since — the iPod "+
+					"has not started it yet%s", rep.Flashed, stamp(in.Record.Flashed), unchecked)
+			}
+		case rep.Booted:
+			rep.State = BootUnknownBuild
+		}
 	}
 
 	if rep.Booted {
@@ -326,6 +357,13 @@ func EvaluateBoot(in BootInputs) BootReport {
 		case boot.IndexRejected != "":
 			r.line(Warn, "index", "the iPod refused %s (%s) at that boot and scanned the "+
 				"tags instead — run `core index`", devicefs.IndexName, boot.IndexRejected)
+		case boot.Counted && in.IndexOK && boot.Songs != in.Songs:
+			r.line(Warn, "index", "the iPod counted %d songs at that boot; %s now holds %d — "+
+				"it has not restarted since that index was written", boot.Songs,
+				devicefs.IndexName, in.Songs)
+		case boot.Counted:
+			r.line(OK, "index", "the iPod counted %d songs in %d albums at that boot",
+				boot.Songs, boot.Albums)
 		case in.IndexOK:
 			r.line(OK, "index", "the library loaded from %s, which holds %d songs",
 				devicefs.IndexName, in.Songs)
@@ -347,6 +385,43 @@ func EvaluateBoot(in BootInputs) BootReport {
 	}
 	rep.Checks = r.checks
 	return rep
+}
+
+// firmwareFromLog is the firmware line when the boot named its own build:
+// the iPod's own word, which outranks anything inferred from the flash
+// record. Firmware before 39fdaf9 never printed it, and those logs take
+// the record path in EvaluateBoot.
+func firmwareFromLog(r *report, rep *BootReport, b BootFacts, in BootInputs) {
+	rep.Version = b.Version
+	ran := versionWords(b.Version)
+	switch {
+	case in.Image.Known && in.Image.Version != "":
+		if in.Image.Version == b.Version {
+			rep.State = BootCurrent
+			r.line(OK, "firmware", "Core %s — the iPod said so at its last boot, and that "+
+				"is the image it holds", ran)
+			return
+		}
+		rep.State, rep.Flashed = BootNotYet, versionWords(in.Image.Version)
+		r.line(Fail, "firmware", "last boot ran %s, the iPod holds %s — it has not "+
+			"restarted since that was written", ran, rep.Flashed)
+	case in.RecordFound && in.Record.Version != "":
+		if in.Record.Version == b.Version {
+			rep.State = BootCurrent
+			r.line(OK, "firmware", "Core %s — the iPod said so at its last boot; flashed %s "+
+				"(the image on the iPod was not read to confirm it)", ran,
+				stamp(in.Record.Flashed))
+			return
+		}
+		rep.State = BootNotYet
+		r.line(Fail, "firmware", "last boot ran %s, flashed %s on %s — the iPod has not "+
+			"restarted since (the image on the iPod was not read to confirm it)", ran,
+			rep.Flashed, stamp(in.Record.Flashed))
+	default:
+		rep.State = BootCurrent
+		r.line(OK, "firmware", "Core %s — the iPod said so at its last boot (nothing on "+
+			"the host says whether a newer image was written since)", ran)
+	}
 }
 
 // bootedSince is the comparison the flash record exists for.

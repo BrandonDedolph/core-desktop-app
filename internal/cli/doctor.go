@@ -42,8 +42,9 @@ the installed image's checksum and version, and then the FAT volume —
 Music/, CORELIB.IDX (header, CRC, record count and the three caps past
 which the device silently drops), CORECFG.DAT, CORELOG.BIN and the
 playlist folder — and last, whether the iPod has booted the image on it:
-the newest boot in CORELOG.BIN, held against the note the last flash
-left in COREFLSH.TXT.
+the newest boot in CORELOG.BIN — the build it names, on firmware newer
+than v0.2.2 — held against the image on the iPod and the note the last
+flash left in COREFLSH.TXT.
 
 --boot prints only that last section and exits 1 when the iPod has an
 image it has not started yet. The bench check after a flash is: unplug

@@ -86,6 +86,14 @@ func tsSet(host uint32) string {
 
 const diskMode = "core: batt raw 0312 mv 3987\ncore: disk mode: entering\n"
 
+// named is the line firmware 39fdaf9 and later print after "kernel alive".
+func named(tag string) string { return "core: version " + tag + " build " + tag + "-5-g39fdaf9" }
+
+// counted is the line the same firmware prints once the library is in.
+func counted(songs, albums int) string {
+	return fmt.Sprintf("core: library songs %08X albums %08X ms 000004D2", songs, albums)
+}
+
 func TestLastBoot(t *testing.T) {
 	at := uint32(bootAt.Unix())
 	cases := []struct {
@@ -221,6 +229,48 @@ func TestEvaluateBoot(t *testing.T) {
 		ver   string
 		want  []string // "STATE name: text-fragment"
 	}{
+		{
+			name: "the boot named its build, and it is the image on the iPod",
+			in: func(t *testing.T) BootInputs {
+				log := synthLog(t, 2048, fixtureLogID,
+					blk{0, 58, bootText(58, tsNone(at), named("v0.2.2"), counted(907, 101)) + diskMode, true})
+				// A stale record (boot 58 noted as the newest) would say "not
+				// yet"; the iPod's own line wins.
+				return BootInputs{Log: log, Record: record("v0.2.2", "v0.2.1", 58),
+					RecordFound: true, Image: image, IndexOK: true, Songs: 907, Now: now}
+			},
+			state: BootCurrent, ver: "v0.2.2",
+			want: []string{
+				"OK firmware: Core v0.2.2 — the iPod said so at its last boot, and that is the image it holds",
+				"OK index: the iPod counted 907 songs in 101 albums at that boot",
+			},
+		},
+		{
+			name: "the boot named an older build than the image on the iPod",
+			in: func(t *testing.T) BootInputs {
+				log := synthLog(t, 2048, fixtureLogID,
+					blk{0, 58, bootText(58, tsNone(at), named("v0.2.1"), counted(900, 100)) + diskMode, true})
+				return BootInputs{Log: log, Image: image, IndexOK: true, Songs: 907, Now: now}
+			},
+			state: BootNotYet, ver: "v0.2.1",
+			want: []string{
+				"FAIL firmware: last boot ran v0.2.1, the iPod holds v0.2.2 — it has not restarted since that was written",
+				"WARN index: the iPod counted 900 songs at that boot; CORELIB.IDX now holds 907",
+			},
+		},
+		{
+			name: "the boot named its build; no image read, no record",
+			in: func(t *testing.T) BootInputs {
+				log := synthLog(t, 2048, fixtureLogID,
+					blk{0, 58, bootText(58, tsNone(at), named("v0.2.2")) + diskMode, true})
+				return BootInputs{Log: log, IndexOK: true, Songs: 907, Now: now}
+			},
+			state: BootCurrent, ver: "v0.2.2",
+			want: []string{
+				"OK firmware: Core v0.2.2 — the iPod said so at its last boot (nothing on the host says",
+				"OK index: the library loaded from CORELIB.IDX, which holds 907 songs",
+			},
+		},
 		{
 			name: "booted the current image",
 			in: func(t *testing.T) BootInputs {
