@@ -178,8 +178,11 @@ to that log every time it starts, so a start newer than the note is a start of t
 `--boot` prints the last start and its time, the build it ran, whether the library index loaded,
 and whether that session ended cleanly (sleep, standby, disk mode) or just stopped (a reset, a
 crash, a flat battery). It exits 1 while the iPod has an image it has not started yet — "flashed
-v0.2.2, last boot ran v0.2.1 — the iPod has not restarted since". An image written by an older
-`core` or another tool has no note, so the build is reported as unknown (a WARN, not a FAIL).
+v0.2.2, last boot ran v0.2.1 — the iPod has not restarted since". Firmware newer than v0.2.2 also
+names its own build in the log at every start, and the check believes that line over the note: it
+then compares the build the iPod said it ran with the image it holds. An image written by an older
+`core` or another tool has no note, so with older firmware the build is reported as unknown (a WARN,
+not a FAIL).
 
 **What is verified.** The iPod Video 5.5G 80 GB is the only model this firmware has ever booted,
 and the only one the app knows. Its flash path has been run on that device: the whole-partition
