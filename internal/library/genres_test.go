@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/BrandonDedolph/core-desktop-app/internal/testutil"
 )
 
 // The embedded map must be the firmware repo's tools/artist_genres.json byte for byte,
@@ -13,10 +15,7 @@ import (
 func TestEmbeddedGenreMapEqualsTheRepoFile(t *testing.T) {
 	// The firmware repository is a separate checkout now; only CORE_REPO
 	// names it (see README.md, "Tests").
-	repo := os.Getenv("CORE_REPO")
-	if repo == "" {
-		t.Skip("firmware repo not given; set CORE_REPO=/path/to/core-firmware")
-	}
+	repo := testutil.CoreRepo(t, filepath.Join("tools", "artist_genres.json"))
 	want, err := os.ReadFile(filepath.Join(repo, "tools", "artist_genres.json"))
 	if err != nil {
 		t.Fatal(err)

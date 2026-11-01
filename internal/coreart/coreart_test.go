@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/BrandonDedolph/core-desktop-app/internal/flac"
+	"github.com/BrandonDedolph/core-desktop-app/internal/testutil"
 )
 
 // twoByTwoPNG is the smallest picture with a distinct colour in every corner:
@@ -390,12 +391,13 @@ func TestReadCoverFromAPIC(t *testing.T) {
 // TestSizesMatchFirmware pins ArtSize/ThumbSize to the two #defines in
 // core/ui/artcache.h. If someone retunes the list chip on the device, this test
 // is what tells the host side that every sidecar in the field is now the wrong
-// size. Skips when the firmware tree is not next to us.
+// size. Skips without CORE_REPO (fails under CORE_REQUIRE_PARITY=1).
 func TestSizesMatchFirmware(t *testing.T) {
-	path := firmwareFile(t, filepath.Join("core", "ui", "artcache.h"))
+	rel := filepath.Join("core", "ui", "artcache.h")
+	path := filepath.Join(testutil.CoreRepo(t, rel), rel)
 	b, err := os.ReadFile(path)
 	if err != nil {
-		t.Skipf("no firmware tree: %v", err)
+		t.Fatal(err)
 	}
 	for _, c := range []struct {
 		define string
@@ -418,16 +420,4 @@ func TestSizesMatchFirmware(t *testing.T) {
 			t.Errorf("%s = %d in %s, but this package uses %d", c.define, got, path, c.want)
 		}
 	}
-}
-
-// firmwareFile resolves rel against the firmware repository's root, which
-// only $CORE_REPO names (a separate checkout of core-firmware); the test
-// skips when it is unset.
-func firmwareFile(t *testing.T, rel string) string {
-	t.Helper()
-	if root := os.Getenv("CORE_REPO"); root != "" {
-		return filepath.Join(root, rel)
-	}
-	t.Skip("firmware tree not given (set CORE_REPO=/path/to/core-firmware)")
-	return ""
 }
