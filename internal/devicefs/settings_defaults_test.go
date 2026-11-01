@@ -21,12 +21,9 @@ import (
 // field this package models. Skips outside the repo.
 func TestDefaultSettingsMatchesFirmware(t *testing.T) {
 	repo := repoRoot(t)
-	if repo == "" {
-		t.Skip("firmware repo not given (set CORE_REPO=/path/to/core-firmware)")
-	}
 	src, err := os.ReadFile(filepath.Join(repo, "core", "ui", "settings.c"))
 	if err != nil {
-		t.Skipf("core/ui/settings.c unreadable: %v", err)
+		t.Fatalf("core/ui/settings.c unreadable: %v", err)
 	}
 
 	body := regexp.MustCompile(`(?s)void\s+settings_defaults\s*\([^)]*\)\s*\{(.*?)\n\}`).

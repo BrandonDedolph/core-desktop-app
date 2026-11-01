@@ -81,13 +81,7 @@ func firstDiff(a, b string) string {
 // this is what catches make_config.py and this package drifting apart.
 func TestEncodeConfigSlotMatchesMakeConfig(t *testing.T) {
 	repo := repoRoot(t)
-	if repo == "" {
-		t.Skip("firmware repo not given (set CORE_REPO=/path/to/core-firmware)")
-	}
 	py := python3(t)
-	if py == "" {
-		t.Skip("python3 not on PATH")
-	}
 	out := filepath.Join(t.TempDir(), "cfg.bin")
 	cmd := exec.Command(py, filepath.Join(repo, "tools", "make_config.py"), "--emit", out)
 	if b, err := cmd.CombinedOutput(); err != nil {

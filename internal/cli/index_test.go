@@ -13,6 +13,7 @@ import (
 	"github.com/BrandonDedolph/core-desktop-app/internal/cidx"
 	"github.com/BrandonDedolph/core-desktop-app/internal/flac"
 	"github.com/BrandonDedolph/core-desktop-app/internal/library"
+	"github.com/BrandonDedolph/core-desktop-app/internal/testutil"
 )
 
 // --- the synthetic tree ------------------------------------------------------
@@ -301,10 +302,7 @@ func TestIndexReportsUnreadableTracks(t *testing.T) {
 // same files. Byte-identical is the bar: a mismatch is a bug to find, not a
 // tolerance to add.
 func TestBuildIndexParitySynthetic(t *testing.T) {
-	script, skip := referenceTool()
-	if skip != "" {
-		t.Skip(skip)
-	}
+	script := referenceTool(t)
 	root := t.TempDir()
 	src := filepath.Join(root, "src")
 	writeFixtureTree(t, src)
@@ -330,11 +328,8 @@ func TestParityMC(t *testing.T) {
 	if src == "" {
 		t.Skip("CORE_PARITY_SRC not set; the real library is not on this host")
 	}
-	script, skip := referenceTool()
-	if skip != "" {
-		t.Skip(skip)
-	}
-	repo := repoDir()
+	script := referenceTool(t)
+	repo := repoDir(t)
 	mapPath := filepath.Join(repo, "tools", "artist_genres.json")
 
 	root := t.TempDir()
@@ -392,24 +387,19 @@ func comparePairs(t *testing.T, goPath, pyPath string) {
 	t.Logf("byte-identical to build_index.py: %d bytes, %d records", len(got), (len(got)-16)/256)
 }
 
-// referenceTool locates tools/build_index.py and the programs it needs. The
-// returned string is a skip reason when the oracle cannot run here.
-func referenceTool() (script, skip string) {
-	repo := repoDir()
-	if repo == "" {
-		return "", "firmware repo not found (set CORE_REPO); tools/build_index.py unavailable"
-	}
-	script = filepath.Join(repo, "tools", "build_index.py")
-	if _, err := os.Stat(script); err != nil {
-		return "", "tools/build_index.py not found"
-	}
+// referenceTool locates tools/build_index.py and the programs it needs. When
+// the oracle cannot run here the test skips — or fails, under
+// CORE_REQUIRE_PARITY=1 (testutil.SkipParity).
+func referenceTool(t *testing.T) string {
+	t.Helper()
+	script := filepath.Join(repoDir(t), "tools", "build_index.py")
 	if _, err := exec.LookPath("python3"); err != nil {
-		return "", "python3 not on PATH"
+		testutil.SkipParity(t, "python3 not on PATH")
 	}
 	if _, err := exec.LookPath("ffprobe"); err != nil {
-		return "", "ffprobe not on PATH (ffmpeg provides it)"
+		testutil.SkipParity(t, "ffprobe not on PATH (ffmpeg provides it)")
 	}
-	return script, ""
+	return script
 }
 
 func runReference(script, src, out, genreMap string) (string, error) {
@@ -418,18 +408,12 @@ func runReference(script, src, out, genreMap string) (string, error) {
 	return string(b), err
 }
 
-// repoDir locates the firmware repository: $CORE_REPO, a separate checkout
-// of core-firmware. "" when it is unset or not that tree, which makes the
-// parity tests skip rather than fail.
-func repoDir() string {
-	isRepo := func(dir string) bool {
-		_, err := os.Stat(filepath.Join(dir, "tools", "build_index.py"))
-		return err == nil
-	}
-	if p := os.Getenv("CORE_REPO"); p != "" && isRepo(p) {
-		return p
-	}
-	return ""
+// repoDir locates the firmware repository through testutil.CoreRepo:
+// $CORE_REPO, a separate checkout of core-firmware. Unset, the parity test
+// skips (fails under CORE_REQUIRE_PARITY=1); not that tree, it fails.
+func repoDir(t *testing.T) string {
+	t.Helper()
+	return testutil.CoreRepo(t, filepath.Join("tools", "build_index.py"))
 }
 
 // diffIndexes reports the first divergences in terms of records and fields, so

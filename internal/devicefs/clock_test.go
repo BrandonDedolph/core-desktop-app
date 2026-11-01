@@ -289,13 +289,7 @@ func TestSeqNewerWraps(t *testing.T) {
 // nobody sees until a user's clock is wrong.
 func TestStampMatchesMakeConfig(t *testing.T) {
 	repo := repoRoot(t)
-	if repo == "" {
-		t.Skip("firmware repo not given (set CORE_REPO=/path/to/core-firmware)")
-	}
 	py := python3(t)
-	if py == "" {
-		t.Skip("python3 not on PATH")
-	}
 
 	const epoch = 1789555320
 	const offMin = 330

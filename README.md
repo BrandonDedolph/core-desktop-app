@@ -212,7 +212,10 @@ Several tests check Go output against the firmware repository — its Python too
 (`build_index.py`, `make_config.py`, `make_log.py`, `make_otg.py`, `coreart.py`), its C headers
 and sources — or against real data. They **skip** — never fail — when the thing they need is
 absent, and they never touch the network. The firmware is a separate checkout now, so nothing
-looks for it by walking up from this tree: point `CORE_REPO` at it.
+looks for it by walking up from this tree: point `CORE_REPO` at it. CI checks core-firmware out
+into `_core-firmware/` (ignored by `go ./...` and by git) and sets `CORE_REQUIRE_PARITY=1`, under
+which a firmware-parity test that would have skipped fails instead; set it locally too, to prove a
+run checked parity rather than skipped it.
 
 ```bash
 CORE_REPO=/path/to/core-firmware CORE_PARITY_SRC=/path/to/Music/MC \
@@ -221,7 +224,8 @@ CORE_REPO=/path/to/core-firmware CORE_PARITY_SRC=/path/to/Music/MC \
 
 | Variable | What it points at | Used by |
 |---|---|---|
-| `CORE_REPO` | a checkout of [core-firmware](https://github.com/BrandonDedolph/core-firmware), for tests that run its Python tools or grep its C sources (caps in `core/kernel/main.c`, `settings_defaults()` in `core/ui/settings.c`, the art sizes in `core/ui/artcache.h`, the name-hash vectors, `tools/artist_genres.json`). Unset: those tests skip. | S2, S3, S4a |
+| `CORE_REPO` | a checkout of [core-firmware](https://github.com/BrandonDedolph/core-firmware), for tests that run its Python tools or grep its C sources (caps in `core/kernel/main.c`, `settings_defaults()` in `core/ui/settings.c`, the art sizes in `core/ui/artcache.h`, the name-hash vectors, `tools/artist_genres.json`, the MP3 vectors in `core/tests/codec-vectors`). Unset: those tests skip. | S2, S3, S4a |
+| `CORE_REQUIRE_PARITY` | `1` turns every firmware-parity skip (no `CORE_REPO`, no `python3`, no `ffprobe`) into a failure. CI sets it. Tests that want `CORE_PARITY_SRC` or a dump still skip. Helper: `internal/testutil`. | CI |
 | `CORE_PARITY_SRC` | the source music tree (`…/Music/MC`), read and never written | S1, S2, S3, S4b |
 | `CORE_PARITY_IDX` | an oracle `CORELIB.IDX` built by core-firmware's `tools/build_index.py` | S2 |
 | `CORE_FWPART_DUMP` | a firmware-partition dump (`ipodpatcher -r`), or several separated by `:` | S5 |

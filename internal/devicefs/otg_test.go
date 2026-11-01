@@ -34,13 +34,7 @@ const (
 // being "the On-The-Go list never survives a power cycle".
 func TestEncodeOTGSlotMatchesMakeOTG(t *testing.T) {
 	repo := repoRoot(t)
-	if repo == "" {
-		t.Skip("firmware repo not given (set CORE_REPO=/path/to/core-firmware)")
-	}
 	py := python3(t)
-	if py == "" {
-		t.Skip("python3 not on PATH")
-	}
 	out := filepath.Join(t.TempDir(), "otg.bin")
 	cmd := exec.Command(py, filepath.Join(repo, "tools", "make_otg.py"), "--emit", out)
 	if b, err := cmd.CombinedOutput(); err != nil {
@@ -72,13 +66,7 @@ func TestEncodeOTGSlotMatchesMakeOTG(t *testing.T) {
 // slots hold, and the firmware probes it to decide whether to show them.
 func TestEmptyOTGSlotFileMatchesMakeOTG(t *testing.T) {
 	repo := repoRoot(t)
-	if repo == "" {
-		t.Skip("firmware repo not given (set CORE_REPO=/path/to/core-firmware)")
-	}
 	py := python3(t)
-	if py == "" {
-		t.Skip("python3 not on PATH")
-	}
 	out := filepath.Join(t.TempDir(), "slot.m3u8")
 	cmd := exec.Command(py, filepath.Join(repo, "tools", "make_otg.py"), "--emit-slot", out)
 	if b, err := cmd.CombinedOutput(); err != nil {

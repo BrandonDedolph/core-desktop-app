@@ -23,7 +23,13 @@ const (
 	blkFlsBuf    = 0x00001261 // BLKFLSBUF:    flush the buffer cache
 )
 
-const sysBlock = "/sys/block"
+// sysBlock and mountInfoPath are where this file reads the kernel's view of
+// the disks. Variables, not constants, so a test can point them at a fake
+// tree; nothing in production assigns them.
+var (
+	sysBlock      = "/sys/block"
+	mountInfoPath = "/proc/self/mountinfo"
+)
 
 // listDisks enumerates whole block devices from sysfs.
 //
@@ -131,7 +137,7 @@ func readSysUint(path string) (uint64, bool) {
 // spoofed by a bind mount or confused by a /dev/disk/by-uuid symlink,
 // and because it is the file that survives a mount namespace.
 func readMountInfo() map[string]string {
-	f, err := os.Open("/proc/self/mountinfo")
+	f, err := os.Open(mountInfoPath)
 	if err != nil {
 		return nil
 	}

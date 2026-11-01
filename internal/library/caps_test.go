@@ -12,14 +12,11 @@ import (
 // the songs simply are not in the library — so the host has to know the real
 // numbers. This is the test that keeps the copy honest.
 func TestCapsMatchTheFirmware(t *testing.T) {
-	repo := repoRoot()
-	if repo == "" {
-		t.Skip("firmware repo not found (set CORE_REPO); cannot check the caps")
-	}
+	repo := repoRoot(t)
 	mainC := filepath.Join(repo, "core", "kernel", "main.c")
 	src, err := os.ReadFile(mainC)
 	if err != nil {
-		t.Skipf("read %s: %v", mainC, err)
+		t.Fatalf("read %s: %v", mainC, err)
 	}
 	for _, c := range []struct {
 		define string

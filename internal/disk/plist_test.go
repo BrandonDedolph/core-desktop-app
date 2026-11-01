@@ -162,3 +162,50 @@ func TestParsePlistErrors(t *testing.T) {
 		t.Error("parsePlist accepted a non-numeric <integer>")
 	}
 }
+
+// The rest of the tolerance contract: a value with no key is dropped, an
+// element inside a <string> is skipped, booleans and unknown elements
+// parse, a truncated document fails cleanly, and the typed accessors
+// answer zero for the wrong kind.
+func TestParsePlistOddShapes(t *testing.T) {
+	src := `<plist><dict>
+	<string>orphan</string>
+	<key>Name</key><string>IPOD<b>x</b> DISK</string>
+	<key>Yes</key><true/>
+	<key>No</key><false/>
+	<key>Odd</key><uid>7</uid>
+	<key>Date</key><date>2026-11-01T00:00:00Z</date>
+	<key>List</key><array><string>a</string><false/></array>
+	</dict></plist>`
+	v, err := parsePlist([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := plistDict(v)
+	if _, ok := m["orphan"]; ok || len(m) != 6 {
+		t.Errorf("keys %v: the key-less value must be skipped", m)
+	}
+	if plistStr(m, "Name") != "IPOD DISK" {
+		t.Errorf("Name = %q", plistStr(m, "Name"))
+	}
+	if !plistBool(m, "Yes") || plistBool(m, "No") || m["Odd"] != nil {
+		t.Errorf("Yes/No/Odd = %v %v %v", m["Yes"], m["No"], m["Odd"])
+	}
+	if plistInt(m, "Name") != 0 || plistStr(m, "Yes") != "" || plistDict(m["List"]) != nil || plistArr(m["Name"]) != nil {
+		t.Error("a typed accessor answered for the wrong kind")
+	}
+	if len(plistArr(m["List"])) != 2 {
+		t.Errorf("List = %v", m["List"])
+	}
+
+	// A truncated document (diskutil killed mid-write) is an error, from
+	// inside a dict or an array alike, never a half-built value.
+	for _, doc := range []string{`<plist><dict><key>Only</key>`, `<plist><array><integer>1</integer>`} {
+		if v, err := parsePlist([]byte(doc)); err == nil {
+			t.Errorf("truncated %q parsed as %v", doc, v)
+		}
+	}
+	if _, err := parsePlist([]byte(`<plist><real>one</real></plist>`)); err == nil {
+		t.Error("parsePlist accepted a non-numeric <real>")
+	}
+}

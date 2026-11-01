@@ -7,21 +7,17 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/BrandonDedolph/core-desktop-app/internal/testutil"
 )
 
-// repoRoot locates the firmware repository: $CORE_REPO, a separate checkout
-// of core-firmware. Returns "" when it is unset or not that tree, which is
-// the signal for a parity test to skip rather than fail — the Go module is
-// built and tested on its own.
-func repoRoot() string {
-	isRepo := func(dir string) bool {
-		_, err := os.Stat(filepath.Join(dir, "core", "tests", "kernel", "name_hash_vectors.h"))
-		return err == nil
-	}
-	if p := os.Getenv("CORE_REPO"); p != "" && isRepo(p) {
-		return p
-	}
-	return ""
+// repoRoot locates the firmware repository through testutil.CoreRepo:
+// $CORE_REPO, a separate checkout of core-firmware. Unset, the parity test
+// skips (fails under CORE_REQUIRE_PARITY=1) — the Go module is built and
+// tested on its own; set to something that is not that tree, it fails.
+func repoRoot(t *testing.T) string {
+	t.Helper()
+	return testutil.CoreRepo(t, filepath.Join("core", "tests", "kernel", "name_hash_vectors.h"))
 }
 
 // vecRe is the regex core/tests/scripts/check_name_hash_parity.py parses the
@@ -118,10 +114,7 @@ func unescapeCLiteral(s string) string {
 // NAME_HASH_XFAIL marks a vector the C side was once known to get wrong; like
 // the Python parity script, this side is held to the CORRECT value either way.
 func TestNameHashGoldenVectors(t *testing.T) {
-	repo := repoRoot()
-	if repo == "" {
-		t.Skip("firmware repo not found (set CORE_REPO); golden vectors unavailable")
-	}
+	repo := repoRoot(t)
 	vecs := parseVectors(t, filepath.Join(repo, "core", "tests", "kernel", "name_hash_vectors.h"))
 	if len(vecs) < 10 {
 		t.Fatalf("only parsed %d vectors — the table or the regex is broken", len(vecs))
@@ -348,10 +341,7 @@ func TestSplitAlbumArtistSplitsOnTheLastSeparator(t *testing.T) {
 // codepoint into a 3-byte frame, so any track with an emoji in its name went
 // into the index under a hash the device could never match.
 func TestGoldenVectorsCoverTheAstralPlane(t *testing.T) {
-	repo := repoRoot()
-	if repo == "" {
-		t.Skip("firmware repo not found (set CORE_REPO)")
-	}
+	repo := repoRoot(t)
 	vecs := parseVectors(t, filepath.Join(repo, "core", "tests", "kernel", "name_hash_vectors.h"))
 	var astral int
 	for _, v := range vecs {
