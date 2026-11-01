@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/BrandonDedolph/core-desktop-app/internal/testutil"
 )
 
 func lookTool(name string) string {
@@ -216,15 +218,21 @@ func constantBitrate(path string) bool {
 // the rule is checked on every run and not only when a real library is to
 // hand. The vectors deliberately include an untagged MPEG-2 mono file, whose
 // duration both sides estimate from the bitrate.
+//
+// The vectors live in core-firmware's core/tests/codec-vectors, so this needs
+// CORE_REPO like the other parity tests (testutil.CoreRepo). It used to look
+// for them at a path relative to this package that no longer exists, and
+// skipped on every run without saying so.
 func TestParityVectors(t *testing.T) {
+	rel := filepath.Join("core", "tests", "codec-vectors")
+	dir := filepath.Join(testutil.CoreRepo(t, rel), rel)
 	ffprobe := lookTool("ffprobe")
 	if ffprobe == "" {
-		t.Skip("ffprobe not installed")
+		testutil.SkipParity(t, "ffprobe not installed")
 	}
-	dir := filepath.Join("..", "..", "..", "tests", "codec-vectors")
 	names, err := filepath.Glob(filepath.Join(dir, "*.mp3"))
 	if err != nil || len(names) == 0 {
-		t.Skipf("no vectors under %s", dir)
+		t.Fatalf("no .mp3 vectors under %s", dir)
 	}
 	sort.Strings(names)
 	for _, p := range names {
