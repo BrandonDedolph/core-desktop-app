@@ -1,0 +1,27 @@
+# Cross-build output (scripts/build-all.sh)
+dist/
+
+# Binaries built at the root (go build -o core ./cmd/core, and friends)
+/core
+/core-app
+/core-*
+/*.exe
+
+# Scratch outputs: test snapshots, screenshots rendered elsewhere, notes
+scratchpad/
+.scratch/
+*.test
+*.out
+
+# Python
+tools/.venv/
+__pycache__/
+*.pyc
+
+# Editors and agents
+.claude/
+.vscode/
+.idea/
+
+# WSL Zone.Identifier alternate-stream files
+*:Zone.Identifier
