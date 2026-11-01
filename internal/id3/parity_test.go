@@ -214,6 +214,14 @@ func constantBitrate(path string) bool {
 	return rate != 0
 }
 
+// refusedVector names the committed vectors the firmware refuses at open and
+// that carry no frame our reader can accept either — LAME's free-format
+// stream, whose header bitrate index is 0. core/tests/codec-vectors/README.md
+// is the list; keep this in step with it.
+func refusedVector(p string) bool {
+	return strings.Contains(filepath.Base(p), "freeformat")
+}
+
 // TestParityVectors is the same comparison against the committed vectors, so
 // the rule is checked on every run and not only when a real library is to
 // hand. The vectors deliberately include an untagged MPEG-2 mono file, whose
@@ -237,6 +245,15 @@ func TestParityVectors(t *testing.T) {
 	sort.Strings(names)
 	for _, p := range names {
 		m, err := ReadFile(p)
+		if refusedVector(p) {
+			// Parity here is the refusal itself: the firmware does not open
+			// this file (its README says so) and neither does ffmpeg, so a
+			// reader of ours that found frames in it would be the bug.
+			if err == nil {
+				t.Errorf("%s: read fine, but the firmware refuses this vector", filepath.Base(p))
+			}
+			continue
+		}
 		if err != nil {
 			t.Errorf("%s: %v", filepath.Base(p), err)
 			continue
