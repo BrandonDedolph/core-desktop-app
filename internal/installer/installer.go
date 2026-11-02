@@ -76,6 +76,9 @@ type Options struct {
 	Force bool
 	// BackupDir overrides <user config dir>/core/backups.
 	BackupDir string
+	// KeepBackups is flasher.Options.KeepBackups: how many fwpart-*
+	// backups to leave once the new one is written, 0 for all.
+	KeepBackups int
 	// Untested allows a device outside the tested capacity window.
 	Untested bool
 	// NoRelaunch forbids starting an elevated child.
@@ -239,14 +242,15 @@ func Install(ctx context.Context, o Options, d Deps) (*Result, error) {
 	// 4. The write, through the same flasher sequence as `core flash`.
 	fmt.Fprintln(out)
 	fres, ferr := d.Flash(ctx, flasher.Options{
-		Image:      image,
-		Device:     o.Device,
-		DryRun:     o.DryRun,
-		Yes:        o.Yes,
-		BackupDir:  o.BackupDir,
-		Untested:   o.Untested,
-		NoRelaunch: o.NoRelaunch,
-		Install:    true,
+		Image:       image,
+		Device:      o.Device,
+		DryRun:      o.DryRun,
+		Yes:         o.Yes,
+		BackupDir:   o.BackupDir,
+		KeepBackups: o.KeepBackups,
+		Untested:    o.Untested,
+		NoRelaunch:  o.NoRelaunch,
+		Install:     true,
 	}, flasher.Deps{
 		GOOS:       d.GOOS,
 		ChildArgs:  childArgs(d.ChildArgs, image),

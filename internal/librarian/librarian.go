@@ -120,8 +120,11 @@ type Options struct {
 	JournalDir string
 	// Progress, when set, is called as the work happens.
 	Progress func(Event)
-	// Art finds and downloads cover art. Candidates and Fix need it; a nil
-	// Art with art decisions to act on is an error, not a silent skip.
+	// Art finds and downloads cover art. Nil is "folder covers only"
+	// (Settings → Look for covers on the internet, off): Candidates offers
+	// each album's own larger cover file and asks nobody, and Fix applies
+	// only those. A nil Art with a downloaded candidate to apply is an
+	// error, not a silent skip.
 	Art ArtClient
 	// WritePicture embeds a cover in one FLAC. Defaults to flac.WritePicture
 	// with a front-cover block.
@@ -146,6 +149,11 @@ type Options struct {
 	// calls it low resolution. Zero means DefaultMinArtPx; a negative
 	// value turns the check off.
 	MinArtPx int
+	// SkipDuplicates leaves the duplicate check out of Inspect: no
+	// album-by-album comparison, and Report.DuplicatesChecked stays false,
+	// so an empty Duplicates reads as "not looked for" rather than "none".
+	// Settings → Check for duplicate albums, off.
+	SkipDuplicates bool
 	// TrashDir overrides where RemoveDuplicate moves an album: by default
 	// <parent of the music folder>/.core-trash/<timestamp>/.
 	TrashDir string
@@ -506,8 +514,10 @@ func Inspect(ctx context.Context, src string, o Options) (*Report, error) {
 			rep.LowResArt = append(rep.LowResArt, ArtRef{AlbumRef: ref, Width: w, Height: h, Source: a.files[0]})
 		}
 	}
-	rep.Duplicates = findDuplicates(root, albums, tracks)
-	rep.DuplicatesChecked = true
+	if !o.SkipDuplicates {
+		rep.Duplicates = findDuplicates(root, albums, tracks)
+		rep.DuplicatesChecked = true
+	}
 	o.log(JobInspect, "%d album(s), %d track(s): %d need art, %d with small art, %d misnamed, %d to re-folder, "+
 		"%d in flat multi-disc albums, %d duplicate album(s), %d need attention",
 		rep.Albums, rep.Tracks, len(rep.MissingArt), len(rep.LowResArt), len(rep.Misnamed),

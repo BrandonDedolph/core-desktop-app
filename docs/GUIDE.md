@@ -71,7 +71,12 @@ shows it within two seconds.
   *Settings…* is everything the app remembers, saved the moment you change it: the music folder,
   the four *Fix all* ticks (the Fix tab's own), the small-cover line, the backup folder, *Use
   ReplayGain*, the theme (System, Linen, Onyx — System follows Windows' dark-mode setting), and
-  whether the window keeps its size and reopens on the last tab. *Restore defaults* puts them
+  whether the window keeps its size and reopens on the last tab. It also holds the behaviour: a
+  playlists folder, whether to look for covers on the internet (off, only a cover file in the
+  album folder is used) and for duplicate albums; whether a sync verifies copies by content and
+  ejects the iPod when it finishes, and a genre map file of your own; how many firmware backups
+  to keep (the Apple one always stays), whether to check for updates when an iPod connects and
+  to include pre-releases; and a log file, opened at the next start. *Restore defaults* puts them
   back, keeping the music folder and your iPods' names. The hold to write, the backup before
   every flash and the read-back check are not settings.
 
@@ -155,7 +160,11 @@ core config unset source             # back to the default
 ```
 
 A flag always wins, then `$CORELIB_SRC`, then the file — so once `source` is set, `core sync --dst D:\`
-needs no `--src`, and the command says where the folder came from before it starts.
+needs no `--src`, and the command says where the folder came from before it starts. `core update
+--prereleases` (and `core install --prereleases`) may pick a release candidate, as `prereleases`
+in the file does; `core config set keep_backups 3` makes every flash, update and install keep the
+three newest `fwpart-*` backups and remove the older ones (never `apple-*`), and `--dry-run` lists
+what it would remove.
 
 **The clock.** `sync`, `install` and `eject` all write your computer's current time (and its time
 zone) into `CORECFG.DAT`, and the iPod picks it up at its **next boot**. It cannot be told the time

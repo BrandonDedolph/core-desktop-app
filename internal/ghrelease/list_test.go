@@ -102,3 +102,30 @@ func TestAppNewer(t *testing.T) {
 		}
 	}
 }
+
+// Include pre-releases: a pre-release is chosen only when the client asks
+// for them, and a draft is never chosen either way.
+func TestPrereleasesOnlyWhenAsked(t *testing.T) {
+	list := []Release{
+		{Tag: "v0.3.0", Published: day(6), Draft: true, Assets: fwAsset},
+		{Tag: "v0.2.2-rc1", Published: day(4), Prerelease: true, Assets: fwAsset},
+		{Tag: "v0.2.1", Published: day(1), Assets: fwAsset},
+	}
+	for _, tc := range []struct {
+		include bool
+		want    string
+	}{{false, "v0.2.1"}, {true, "v0.2.2-rc1"}} {
+		s := newAPIServer(t, map[string]Release{}, nil)
+		s.list = list
+		c := s.client()
+		c.IncludePrereleases = tc.include
+		fw, err := c.LatestFirmware(context.Background(), "owner/name")
+		if err != nil || fw.Tag != tc.want {
+			t.Errorf("IncludePrereleases %v: firmware %q, %v; want %s", tc.include, fw.Tag, err, tc.want)
+		}
+		app, err := c.LatestApp(context.Background(), "owner/name")
+		if err != nil || app.Tag != tc.want {
+			t.Errorf("IncludePrereleases %v: app %q, %v; want %s", tc.include, app.Tag, err, tc.want)
+		}
+	}
+}

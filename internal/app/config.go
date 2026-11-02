@@ -66,7 +66,47 @@ type Config struct {
 	// LastTabRemember is "Reopen the last tab"; absent is on. Off deletes
 	// LastTab and stops saving it.
 	LastTabRemember *bool `json:"last_tab_remember,omitempty"`
+
+	// The behaviour keys (settings plan, slice C3). Each one changes how
+	// the host works, never what a sync writes to the iPod (rule 5).
+
+	// PlaylistsDir is the folder of .m3u8 playlists a sync copies; empty
+	// is <music folder>/Playlists, the syncer's own default.
+	PlaylistsDir string `json:"playlists_dir,omitempty"`
+	// OnlineArt is "Look for covers on the internet"; absent is on. Off,
+	// the art client is nil and only a cover file in the album's folder
+	// is offered.
+	OnlineArt *bool `json:"online_art,omitempty"`
+	// CheckDuplicates is "Check for duplicate albums"; absent is on.
+	CheckDuplicates *bool `json:"check_duplicates,omitempty"`
+	// VerifySync compares copies by content instead of size and date.
+	VerifySync bool `json:"verify_sync,omitempty"`
+	// EjectAfterSync ejects the iPod when a sync ends with no error.
+	EjectAfterSync bool `json:"eject_after_sync,omitempty"`
+	// GenreMap is a JSON artist -> genre file used instead of the
+	// built-in map; empty is the built-in one.
+	GenreMap string `json:"genre_map,omitempty"`
+	// UpdateCheck is when the app asks GitHub by itself: "" (when an iPod
+	// connects, once a launch) or "never". The menu's Check for updates
+	// works either way.
+	UpdateCheck string `json:"update_check,omitempty"`
+	// Prereleases lets a GitHub pre-release be offered as an update.
+	Prereleases bool `json:"prereleases,omitempty"`
+	// KeepBackups is how many fwpart-* backups a flash leaves behind,
+	// newest first; 0 keeps them all. apple-* files are never counted
+	// and never removed.
+	KeepBackups int `json:"keep_backups,omitempty"`
+	// LogFile is where the app appends its log when --log is not given.
+	// Read at start only.
+	LogFile string `json:"log_file,omitempty"`
 }
+
+// UpdateCheckNever is update_check's one non-default word.
+const UpdateCheckNever = "never"
+
+// OnlineArtOn and CheckDuplicatesOn read the two default-on C3 keys.
+func (c Config) OnlineArtOn() bool       { return on(c.OnlineArt) }
+func (c Config) CheckDuplicatesOn() bool { return on(c.CheckDuplicates) }
 
 // WindowSize is config.json's "window": {"w": 980, "h": 700}, in dp.
 type WindowSize struct {

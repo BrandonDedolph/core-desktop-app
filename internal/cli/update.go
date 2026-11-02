@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/BrandonDedolph/core-desktop-app/internal/disk"
@@ -46,13 +47,14 @@ const notesLineLimit = 40
 
 func newUpdateCmd() *cobra.Command {
 	var (
-		check      bool
-		tag        string
-		yes        bool
-		repo       string
-		untested   bool
-		noRelaunch bool
-		backupDir  string
+		check       bool
+		tag         string
+		yes         bool
+		repo        string
+		untested    bool
+		noRelaunch  bool
+		backupDir   string
+		prereleases bool
 	)
 	cmd := &cobra.Command{
 		Use:   "update",
@@ -84,14 +86,17 @@ check: it catches a truncated or corrupted download, not a hostile one.`,
 			// as --backup-dir, so an elevated child running as another
 			// account backs up where this user's config said.
 			backupDir, _ = resolveBackupDir(cmd, backupDir)
+			prereleases = resolveBoolFlag(cmd, "prereleases", "prereleases", prereleases)
 			return runUpdate(cmd, updateOptions{
-				Check:      check,
-				Tag:        strings.TrimSpace(tag),
-				Yes:        yes,
-				Repo:       strings.TrimSpace(repo),
-				Untested:   untested,
-				NoRelaunch: noRelaunch,
-				BackupDir:  backupDir,
+				Prereleases: prereleases,
+				KeepBackups: resolveKeepBackups(cmd, 0),
+				Check:       check,
+				Tag:         strings.TrimSpace(tag),
+				Yes:         yes,
+				Repo:        strings.TrimSpace(repo),
+				Untested:    untested,
+				NoRelaunch:  noRelaunch,
+				BackupDir:   backupDir,
 			})
 		},
 	}
@@ -110,17 +115,23 @@ check: it catches a truncated or corrupted download, not a hostile one.`,
 		"Never start an elevated copy of this command; refuse and print the command instead")
 	cmd.Flags().StringVar(&backupDir, "backup-dir", "",
 		"Where to write the whole-partition backup (default: backup_dir in core config, else <user config dir>/core/backups)")
+	cmd.Flags().BoolVar(&prereleases, "prereleases", false,
+		"Also consider releases GitHub marks as pre-releases (default: prereleases in core config)")
 	return cmd
 }
 
 type updateOptions struct {
-	Check      bool
-	Tag        string
-	Yes        bool
-	Repo       string
-	Untested   bool
-	NoRelaunch bool
-	BackupDir  string
+	// Prereleases lets the latest be a pre-release; drafts never.
+	Prereleases bool
+	// KeepBackups is keep_backups, handed to the flash and its child.
+	KeepBackups int
+	Check       bool
+	Tag         string
+	Yes         bool
+	Repo        string
+	Untested    bool
+	NoRelaunch  bool
+	BackupDir   string
 }
 
 func runUpdate(cmd *cobra.Command, o updateOptions) error {
@@ -183,6 +194,7 @@ func runUpdate(cmd *cobra.Command, o updateOptions) error {
 
 func fetchRelease(ctx context.Context, o updateOptions) (ghrelease.Release, error) {
 	c := newReleaseClient()
+	c.IncludePrereleases = o.Prereleases
 	if o.Tag != "" {
 		rel, err := c.ByTag(ctx, o.Repo, o.Tag)
 		if err != nil {
@@ -283,12 +295,13 @@ func flashCached(cmd *cobra.Command, o updateOptions, path string) error {
 	fmt.Fprintln(out)
 
 	res, err := flashImage(cmd.Context(), flasher.Options{
-		Image:      path,
-		Device:     deviceFlag(cmd),
-		Yes:        o.Yes,
-		BackupDir:  o.BackupDir,
-		Untested:   o.Untested,
-		NoRelaunch: o.NoRelaunch,
+		Image:       path,
+		Device:      deviceFlag(cmd),
+		Yes:         o.Yes,
+		BackupDir:   o.BackupDir,
+		KeepBackups: o.KeepBackups,
+		Untested:    o.Untested,
+		NoRelaunch:  o.NoRelaunch,
 	}, flasher.Deps{
 		GOOS:      runtime.GOOS,
 		ChildArgs: flashChildArgs(cmd, o, path),
@@ -327,6 +340,9 @@ func flashChildArgs(cmd *cobra.Command, o updateOptions, path string) []string {
 	}
 	if o.BackupDir != "" {
 		args = append(args, "--backup-dir", o.BackupDir)
+	}
+	if o.KeepBackups > 0 {
+		args = append(args, "--"+keepBackupsFlag, strconv.Itoa(o.KeepBackups))
 	}
 	if o.Untested {
 		args = append(args, "--untested-hardware")

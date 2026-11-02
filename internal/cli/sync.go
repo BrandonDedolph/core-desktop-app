@@ -52,8 +52,9 @@ compares content hashes instead, which is slow and certain.`,
 			stdout, stderr := cmd.OutOrStdout(), cmd.ErrOrStderr()
 			o.Src = resolveSrc(cmd, o.Src)
 			if !cmd.Flags().Changed("genre-map") {
-				o.GenreMap = defaultGenreMap()
+				o.GenreMap = resolveGenreMap(cmd)
 			}
+			o.Playlists = resolvePlaylists(cmd, o.Playlists)
 
 			scan, err := syncer.ScanSource(o)
 			if err != nil {
@@ -114,8 +115,8 @@ compares content hashes instead, which is slow and certain.`,
 	f.BoolVar(&o.Yes, "yes", false, "Confirm the deletions --prune listed")
 	f.BoolVar(&o.NoArt, "no-art", false, "Do not touch the art sidecars (existing ones are left alone)")
 	f.BoolVar(&o.ArtRefresh, "art-refresh", false, "Re-render folder.art and folder.thm even when the ones on the device are valid")
-	f.StringVar(&o.GenreMap, "genre-map", "", "JSON artist -> genre map; pass '' for tag genres only (default: the built-in map, or tools/artist_genres.json when run inside the repo)")
-	f.StringVar(&o.Playlists, "playlists", "", "Folder of .m3u8/.m3u playlists (default: <src>/Playlists)")
+	f.StringVar(&o.GenreMap, "genre-map", "", "JSON artist -> genre map; pass '' for tag genres only (default: genre_map in core config, else the built-in map, or tools/artist_genres.json when run inside the repo)")
+	f.StringVar(&o.Playlists, "playlists", "", "Folder of .m3u8/.m3u playlists (default: playlists_dir in core config, else <src>/Playlists)")
 	f.BoolVar(&asJSON, "json", false, "Print the plan (with --dry-run) or the report as JSON")
 	f.BoolVar(&listSkips, "list-skips", false, "With --dry-run, also list every file that would be skipped")
 

@@ -20,7 +20,7 @@ import (
 // the elevation prompt names core-app, which has no flash command at
 // all and would open a second window instead of writing.
 func TestBuildFlashDepsNamesTheCLIAndItsCommandLine(t *testing.T) {
-	o, d := buildFlashDeps(`C:\img\core.ipod`, `C:\app\core.exe`, `C:\backups`,
+	o, d := buildFlashDeps(`C:\img\core.ipod`, `C:\app\core.exe`, `C:\backups`, 0,
 		func(string) (string, error) { return "typed", nil }, nil)
 
 	if o.Image != `C:\img\core.ipod` {
@@ -53,7 +53,7 @@ func TestBuildFlashDepsNamesTheCLIAndItsCommandLine(t *testing.T) {
 // The alternative — letting the flasher relaunch core-app itself — is a
 // second window that writes nothing and looks like success.
 func TestBuildFlashDepsWithoutTheCLIRefusesToRelaunch(t *testing.T) {
-	_, d := buildFlashDeps("/img/core.ipod", "", "/backups", nil, nil)
+	_, d := buildFlashDeps("/img/core.ipod", "", "/backups", 0, nil, nil)
 	exe, _ := d.Executable()
 	if exe != "core" {
 		t.Errorf("Executable() = %q, want the bare name so the printed line is runnable", exe)
@@ -73,7 +73,7 @@ func TestBuildFlashDepsWithoutTheCLIRefusesToRelaunch(t *testing.T) {
 // install command and would open a second window instead of writing.
 func TestBuildInstallDepsNamesTheCLIAndRunsInstall(t *testing.T) {
 	b := &RealBackend{CLI: `C:\app\core.exe`, GOOS: "windows"}
-	d := buildInstallDeps(b, `C:\backups`,
+	d := buildInstallDeps(b, `C:\backups`, 0,
 		func(string) (string, error) { return "typed", nil }, nil)
 
 	want := []string{"install", `C:\img\core.ipod`, "--backup-dir", `C:\backups`}
@@ -96,7 +96,7 @@ func TestBuildInstallDepsNamesTheCLIAndRunsInstall(t *testing.T) {
 // With no CLI beside the app, Relaunch must refuse and say what to do —
 // a second core-app window would write nothing and look like success.
 func TestBuildInstallDepsWithoutTheCLIRefusesToRelaunch(t *testing.T) {
-	d := buildInstallDeps(&RealBackend{}, "/backups", nil, nil)
+	d := buildInstallDeps(&RealBackend{}, "/backups", 0, nil, nil)
 	exe, _ := d.Executable()
 	if exe != "core" {
 		t.Errorf("Executable() = %q, want the bare name so the printed line is runnable", exe)
@@ -104,6 +104,25 @@ func TestBuildInstallDepsWithoutTheCLIRefusesToRelaunch(t *testing.T) {
 	if _, _, err := d.Relaunch([]string{"install", "x"}); err == nil ||
 		!strings.Contains(err.Error(), "not next to this app") {
 		t.Errorf("the refusal does not explain itself: %v", err)
+	}
+}
+
+// Keep backups reaches the elevated child as a flag, beside the folder:
+// the child may run as another account, whose config.json is not this
+// one, so it must not look the count up again over there.
+func TestKeepBackupsGoesToTheChild(t *testing.T) {
+	o, d := buildFlashDeps("/img/core.ipod", "/app/core", "/backups", 3, nil, nil)
+	if o.KeepBackups != 3 {
+		t.Errorf("Options.KeepBackups = %d, want 3", o.KeepBackups)
+	}
+	want := []string{"flash", "/img/core.ipod", "--backup-dir", "/backups", "--keep-backups", "3"}
+	if !reflect.DeepEqual(d.ChildArgs, want) {
+		t.Errorf("flash ChildArgs = %q, want %q", d.ChildArgs, want)
+	}
+	id := buildInstallDeps(&RealBackend{CLI: "/app/core"}, "/backups", 10, nil, nil)
+	want = []string{"install", "/img/core.ipod", "--backup-dir", "/backups", "--keep-backups", "10"}
+	if got := id.ChildArgs("/img/core.ipod"); !reflect.DeepEqual(got, want) {
+		t.Errorf("install ChildArgs = %q, want %q", got, want)
 	}
 }
 

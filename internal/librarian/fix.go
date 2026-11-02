@@ -228,7 +228,12 @@ func Candidates(ctx context.Context, r *Report, art ArtClient, o Options) (map[A
 		o.log(JobArt, "%s: the folder's own %s (%s), no lookup needed", key, c[0].ID, dims(c[0].Width, c[0].Height))
 	}
 	if len(targets) > 0 && art == nil {
-		return out, errors.New("fix: no cover-art client")
+		// Folder covers only: what the folders hold is the whole answer,
+		// and the rest is said once rather than as a failure.
+		o.log(JobArt, "%d album(s) not looked up: looking on the internet is off, so only a cover file "+
+			"in the album folder is used", len(targets))
+		o.progress(JobArt, "", len(targets), len(targets))
+		return out, nil
 	}
 	for i, a := range targets {
 		if err := ctx.Err(); err != nil {

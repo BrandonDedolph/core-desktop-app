@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -162,10 +163,22 @@ type RealBackend struct {
 	HTTP *http.Client
 	// MinArtPx is config.json's min_art_px, handed to every Inspect.
 	MinArtPx int
+	// NoOnlineArt is online_art off: no art client, so covers come from
+	// the album folder only and nothing here asks iTunes, MusicBrainz or
+	// the Cover Art Archive — not even for a thumbnail.
+	NoOnlineArt bool
+	// SkipDuplicates is check_duplicates off, handed to every Inspect.
+	SkipDuplicates bool
+	// Prereleases is config.json's prereleases: GitHub pre-releases may
+	// be offered, for the firmware and for the app alike.
+	Prereleases bool
+	// KeepBackups is keep_backups, handed to every flash and install:
+	// how many fwpart-* backups to leave, 0 for all.
+	KeepBackups int
 
-	// setMu guards BackupDir and MinArtPx once the window is up: Settings
-	// changes them on the UI goroutine (SetBackupDir, SetMinArtPx) while a
-	// job may be reading them on its own. The fields stay exported so the
+	// setMu guards the settings fields above once the window is up:
+	// Settings changes them on the UI goroutine (SetBackupDir,
+	// SetMinArtPx, …) while a job may be reading them on its own. The fields stay exported so the
 	// wiring in cmd/core-app and the tests can fill them before anything
 	// runs.
 	setMu sync.Mutex
@@ -198,6 +211,50 @@ func (b *RealBackend) SetMinArtPx(px int) {
 	b.setMu.Lock()
 	b.MinArtPx = px
 	b.setMu.Unlock()
+}
+
+// SetOnlineArt is Settings → Look for covers on the internet.
+func (b *RealBackend) SetOnlineArt(v bool) {
+	b.setMu.Lock()
+	b.NoOnlineArt = !v
+	b.setMu.Unlock()
+}
+
+// SetCheckDuplicates is Settings → Check for duplicate albums, for every
+// later Inspect.
+func (b *RealBackend) SetCheckDuplicates(v bool) {
+	b.setMu.Lock()
+	b.SkipDuplicates = !v
+	b.setMu.Unlock()
+}
+
+// SetPrereleases is Settings → Include pre-releases, for every later
+// check (the firmware's and the app's).
+func (b *RealBackend) SetPrereleases(v bool) {
+	b.setMu.Lock()
+	b.Prereleases = v
+	b.setMu.Unlock()
+}
+
+// SetKeepBackups is Settings → Keep backups, for every later flash.
+func (b *RealBackend) SetKeepBackups(n int) {
+	b.setMu.Lock()
+	b.KeepBackups = n
+	b.setMu.Unlock()
+}
+
+// settingsNow is one consistent read of the live settings a job uses.
+func (b *RealBackend) settingsNow() (noArt, skipDup, pre bool, keep int) {
+	b.setMu.Lock()
+	defer b.setMu.Unlock()
+	return b.NoOnlineArt, b.SkipDuplicates, b.Prereleases, b.KeepBackups
+}
+
+// releaseClient is a GitHub client that honours Include pre-releases.
+func (b *RealBackend) releaseClient() *ghrelease.Client {
+	c := ghrelease.New()
+	_, _, c.IncludePrereleases, _ = b.settingsNow()
+	return c
 }
 
 // backupDir is the folder backups go to now: the configured one, else the
@@ -356,7 +413,10 @@ func (b *RealBackend) Install(ctx context.Context, o installer.Options, emit fun
 		dir = b.backupDir()
 	}
 	o.BackupDir = dir
-	deps := buildInstallDeps(b, dir, confirm, emitWriter(emit))
+	if o.KeepBackups == 0 {
+		_, _, _, o.KeepBackups = b.settingsNow()
+	}
+	deps := buildInstallDeps(b, dir, o.KeepBackups, confirm, emitWriter(emit))
 	if b.GOOS != "" {
 		deps.GOOS = b.GOOS
 	}
@@ -373,7 +433,7 @@ func (b *RealBackend) Install(ctx context.Context, o installer.Options, emit fun
 // one difference is the command — `core install <image>`, not `flash`,
 // because the volume step is part of an install and the child is the
 // process that reaches it.
-func buildInstallDeps(b *RealBackend, backupDir string,
+func buildInstallDeps(b *RealBackend, backupDir string, keepBackups int,
 	confirm func(prompt string) (string, error), out io.Writer) installer.Deps {
 	d := installer.Deps{
 		Inspect: func(ctx context.Context) (installer.Device, error) {
@@ -392,7 +452,7 @@ func buildInstallDeps(b *RealBackend, backupDir string,
 			if backupDir != "" {
 				args = append(args, "--backup-dir", backupDir)
 			}
-			return args
+			return append(args, keepBackupsArgs(keepBackups)...)
 		},
 		Confirm: confirm,
 		Out:     out,
@@ -486,7 +546,7 @@ func (b *RealBackend) Release(ctx context.Context) (Release, error) {
 	if repo == "" {
 		repo = ghrelease.DefaultRepo
 	}
-	rel, err := ghrelease.LatestFirmware(ctx, repo)
+	rel, err := b.releaseClient().LatestFirmware(ctx, repo)
 	if err != nil {
 		return Release{Checked: true, Err: err.Error()}, err
 	}
@@ -503,7 +563,7 @@ func (b *RealBackend) AppRelease(ctx context.Context) (string, string, error) {
 	if repo == "" {
 		repo = ghrelease.AppRepo
 	}
-	rel, err := ghrelease.LatestApp(ctx, repo)
+	rel, err := b.releaseClient().LatestApp(ctx, repo)
 	if err != nil {
 		return "", "", err
 	}
@@ -549,7 +609,8 @@ func (b *RealBackend) Download(ctx context.Context, rel Release, emit func(Event
 func (b *RealBackend) Flash(ctx context.Context, file string,
 	confirm func(prompt string) (string, error), emit func(Event)) error {
 	dir := b.backupDir()
-	o, deps := buildFlashDeps(file, b.CLI, dir, confirm, emitWriter(emit))
+	_, _, _, keep := b.settingsNow()
+	o, deps := buildFlashDeps(file, b.CLI, dir, keep, confirm, emitWriter(emit))
 	if b.GOOS != "" {
 		deps.GOOS = b.GOOS
 	}
@@ -566,11 +627,13 @@ func (b *RealBackend) Flash(ctx context.Context, file string,
 // app itself, and ChildArgs spells the child's command line as a
 // `flash`, because `core-app --something` is not a command line anybody
 // could read in a UAC prompt or re-run by hand.
-func buildFlashDeps(file, cliPath, backupDir string,
+func buildFlashDeps(file, cliPath, backupDir string, keepBackups int,
 	confirm func(prompt string) (string, error), out io.Writer) (flasher.Options, flasher.Deps) {
-	o := flasher.Options{Image: file, BackupDir: backupDir}
+	o := flasher.Options{Image: file, BackupDir: backupDir, KeepBackups: keepBackups}
+	// The elevated child is told the count, as it is told the folder: it
+	// may run as another account, whose config.json is not this one.
 	d := flasher.Deps{
-		ChildArgs: []string{"flash", file, "--backup-dir", backupDir},
+		ChildArgs: append([]string{"flash", file, "--backup-dir", backupDir}, keepBackupsArgs(keepBackups)...),
 		Confirm:   confirm,
 		Out:       out,
 	}
@@ -592,6 +655,14 @@ func buildFlashDeps(file, cliPath, backupDir string,
 		}
 	}
 	return o, d
+}
+
+// keepBackupsArgs is the child's --keep-backups, or nothing for "all".
+func keepBackupsArgs(n int) []string {
+	if n <= 0 {
+		return nil
+	}
+	return []string{"--keep-backups", strconv.Itoa(n)}
 }
 
 // emitWriter adapts the flasher's io.Writer to the event channel. The
@@ -761,7 +832,15 @@ func libEvents(emit func(Event)) func(librarian.Event) {
 // artClient is the shared art client. One per backend, so the cache and
 // the MusicBrainz rate limiter are shared across every lookup the window
 // makes — a limiter per call would be no limiter at all.
-func (b *RealBackend) artClient() *artfetch.Client {
+//
+// It is nil — an untyped nil interface, never a nil *artfetch.Client in
+// one, which the librarian could not tell from a client — when Look for
+// covers on the internet is off: the librarian then offers folder covers
+// only and makes no request.
+func (b *RealBackend) artClient() librarian.ArtClient {
+	if noArt, _, _, _ := b.settingsNow(); noArt {
+		return nil
+	}
 	b.artOnce.Do(func() {
 		b.art = artfetch.New()
 	})
@@ -771,10 +850,12 @@ func (b *RealBackend) artClient() *artfetch.Client {
 // Inspect is librarian.Inspect with the window's progress.
 func (b *RealBackend) Inspect(ctx context.Context, src string, discFolders bool,
 	emit func(Event)) (*librarian.Report, error) {
+	_, skipDup, _, _ := b.settingsNow()
 	return librarian.Inspect(ctx, src, librarian.Options{
-		Progress:    libEvents(emit),
-		DiscFolders: discFolders,
-		MinArtPx:    b.minArtPx(),
+		Progress:       libEvents(emit),
+		DiscFolders:    discFolders,
+		MinArtPx:       b.minArtPx(),
+		SkipDuplicates: skipDup,
 	})
 }
 
@@ -817,6 +898,10 @@ func (b *RealBackend) Thumbnail(dir string, px int) (image.Image, error) {
 // MusicBrainz and the Cover Art Archive require it of every request.
 func (b *RealBackend) FetchThumb(ctx context.Context, url string) (image.Image, error) {
 	if strings.TrimSpace(url) == "" {
+		return nil, ErrNoThumb
+	}
+	if noArt, _, _, _ := b.settingsNow(); noArt {
+		// A folder cover has no URL; anything with one is the internet.
 		return nil, ErrNoThumb
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)

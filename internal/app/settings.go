@@ -47,7 +47,45 @@ type settingsSheet struct {
 	themeClicks            [len(themeChoices)]widget.Clickable
 	rgTick, winTick        widget.Bool
 	tabTick                widget.Bool
+
+	// C3: the behaviour rows.
+	playlistsEd, genreEd, logEd       widget.Editor
+	playlistsBrowse, playlistsDefault widget.Clickable
+	genreBrowse, genreBuiltin         widget.Clickable
+	logBrowse, logShow                widget.Clickable
+	onlineTick, dupTick               widget.Bool
+	verifyTick, ejectTick, preTick    widget.Bool
+	keepClicks                        [len(keepChoices)]widget.Clickable
+	updClicks                         [len(updateChoices)]widget.Clickable
 }
+
+// keepChoices are the Keep backups picker's stops, as keep_backups stores
+// them: 0 is all, the default, so it is never written out.
+var keepChoices = [3]struct {
+	label string
+	n     int
+}{{"All", 0}, {"Last 3", 3}, {"Last 10", 10}}
+
+// keepIndex is the stop a keep_backups value selects, or -1 for a
+// hand-edited count the picker does not have.
+func keepIndex(n int) int {
+	for i, c := range keepChoices {
+		if c.n == n || (c.n == 0 && n < 0) {
+			return i
+		}
+	}
+	return -1
+}
+
+// updateChoices are Check for updates' two stops, as update_check stores
+// them ("" is the default, when an iPod connects).
+var updateChoices = [2]struct {
+	label, value string
+}{{"When an iPod connects", ""}, {"Never", UpdateCheckNever}}
+
+// logFileName is the name Diagnostics' Browse… gives the log in the folder
+// chosen: the picker asks for a folder, and a name nobody has to invent.
+const logFileName = "core-app.log"
 
 // themeChoices are the Theme row's radio buttons, in order.
 var themeChoices = [3]Theme{ThemeSystem, ThemeLinen, ThemeOnyx}
@@ -109,6 +147,33 @@ const (
 	setRestore     = "Restore defaults"
 	setFixed       = "The hold to write, the backup before every flash and the read-back check cannot be turned off."
 	setClose       = "Close"
+
+	// C3.
+	setSync           = "Sync"
+	setDiagnostics    = "Diagnostics"
+	setPlaylists      = "Playlists folder"
+	setPlaylistsEmpty = "the Playlists folder inside the music folder when empty"
+	setDefault        = "Default"
+	setCovers         = "Covers"
+	setOnline         = "Look for covers on the internet"
+	setOnlineSub      = "iTunes, then MusicBrainz and the Cover Art Archive; off, only a cover file in the album folder is used"
+	setDuplicates     = "Duplicates"
+	setDupTick        = "Check for duplicate albums"
+	setCopies         = "Copies"
+	setVerify         = "Verify copies by content"
+	setVerifySub      = "slower; compares every byte instead of size and date"
+	setEject          = "Eject when a sync finishes"
+	setGenreMap       = "Genre map"
+	setGenreSub       = "fills in a genre the tags leave out; the built-in map when empty"
+	setBuiltin        = "Built-in"
+	setKeep           = "Keep backups"
+	setKeepSub        = "the Apple firmware backup is always kept"
+	setUpdates        = "Check for updates"
+	setPreRow         = "Pre-releases"
+	setPre            = "Include pre-releases"
+	setPreSub         = "for trying a release candidate on your own iPod"
+	setLogFile        = "Log file"
+	setLogSub         = "takes effect at the next start"
 )
 
 // settingsStrings is every string the sheet can show, for the words test.
@@ -117,8 +182,18 @@ func (u *UI) settingsStrings() []string {
 		setFixAll, setNames, setOrganize, setLowRes, setDiscs, setFixAllSub, setSmallCovers, setSmallSub,
 		setBackupDir, setBackupSub, setBackupSub2, setBrowse, setShowFolder, setRG, setRGTick, setRGSub,
 		setThemeRow, setWindow, setWinTick, setTabTick, setFileIs + u.configPathShown(), setRestore, setFixed,
-		setClose, u.backupDirShown(), restoreBody, u.minArtNote()}
+		setClose, u.backupDirShown(), restoreBody, u.minArtNote(),
+		setSync, setDiagnostics, setPlaylists, setPlaylistsEmpty, u.playlistsSub(), setDefault, setCovers,
+		setOnline, setOnlineSub, setDuplicates, setDupTick, setCopies, setVerify, setVerifySub, setEject,
+		setGenreMap, setGenreSub, setBuiltin, setKeep, setKeepSub, u.keepNote(), setUpdates, setPreRow, setPre,
+		setPreSub, setLogFile, setLogSub}
 	for _, c := range minArtChoices {
+		out = append(out, c.label)
+	}
+	for _, c := range keepChoices {
+		out = append(out, c.label)
+	}
+	for _, c := range updateChoices {
 		out = append(out, c.label)
 	}
 	for _, t := range themeChoices {
@@ -134,6 +209,17 @@ func (u *UI) openSettings() {
 	s.rgTick.Value = u.replayGainOn()
 	s.winTick.Value = on(u.cfg.WindowRemember)
 	s.tabTick.Value = on(u.cfg.LastTabRemember)
+	for _, ed := range []*widget.Editor{&s.playlistsEd, &s.genreEd, &s.logEd} {
+		ed.SingleLine, ed.Submit = true, true
+	}
+	s.playlistsEd.SetText(u.cfg.PlaylistsDir)
+	s.genreEd.SetText(u.cfg.GenreMap)
+	s.logEd.SetText(u.cfg.LogFile)
+	s.onlineTick.Value = u.cfg.OnlineArtOn()
+	s.dupTick.Value = u.cfg.CheckDuplicatesOn()
+	s.verifyTick.Value = u.cfg.VerifySync
+	s.ejectTick.Value = u.cfg.EjectAfterSync
+	s.preTick.Value = u.cfg.Prereleases
 	u.systemNow = ThemeSystem.Resolve()
 	u.settings = s
 }
@@ -148,6 +234,171 @@ func (u *UI) closeSettings() { u.settings = nil }
 type liveSettings interface {
 	SetBackupDir(dir string)
 	SetMinArtPx(px int)
+	SetOnlineArt(on bool)
+	SetCheckDuplicates(on bool)
+	SetPrereleases(on bool)
+	SetKeepBackups(n int)
+}
+
+// live is the backend's liveSettings, or nil for one that has none.
+func (u *UI) live() liveSettings {
+	ls, _ := u.be.(liveSettings)
+	return ls
+}
+
+// --- the behaviour rows (C3) ----------------------------------------------
+
+// setOnlineArt is Look for covers on the internet. The backend's art
+// client goes (or comes back) for every later lookup; the Fix tab's cover
+// rows say which it is from u.cfg.
+func (u *UI) setOnlineArt(v bool) {
+	u.cfg.OnlineArt = onPtr(v)
+	u.saveConfig()
+	if ls := u.live(); ls != nil {
+		ls.SetOnlineArt(v)
+	}
+}
+
+// setCheckDuplicates is Check for duplicate albums: every later scan, and
+// one now, so the Fix tab's Duplicate albums row appears or goes.
+func (u *UI) setCheckDuplicates(v bool) {
+	u.cfg.CheckDuplicates = onPtr(v)
+	u.saveConfig()
+	if ls := u.live(); ls != nil {
+		ls.SetCheckDuplicates(v)
+	}
+	u.rescanSoon()
+}
+
+// setPrereleases is Include pre-releases, for the next check.
+func (u *UI) setPrereleases(v bool) {
+	u.cfg.Prereleases = v
+	u.saveConfig()
+	if ls := u.live(); ls != nil {
+		ls.SetPrereleases(v)
+	}
+}
+
+// setKeepBackups is the Keep backups picker, for the next flash.
+func (u *UI) setKeepBackups(n int) {
+	if n == u.cfg.KeepBackups {
+		return
+	}
+	u.cfg.KeepBackups = n
+	u.saveConfig()
+	if ls := u.live(); ls != nil {
+		ls.SetKeepBackups(n)
+	}
+}
+
+// keepNote is the Keep backups sub-line, or what a hand-edited count is.
+func (u *UI) keepNote() string {
+	if n := u.cfg.KeepBackups; keepIndex(n) < 0 {
+		return "now the last " + itoa(n) + ", set in the settings file; " + setKeepSub
+	}
+	return setKeepSub
+}
+
+// playlistsSub is the Playlists folder's sub-line: the folder an empty
+// field means, named, when the music folder is known.
+func (u *UI) playlistsSub() string {
+	src := strings.TrimSpace(u.st.Source)
+	if src == "" {
+		return setPlaylistsEmpty
+	}
+	sep := "/"
+	if strings.Contains(src, `\`) {
+		sep = `\`
+	}
+	return strings.TrimRight(src, `/\`) + sep + "Playlists when empty"
+}
+
+// setPath is the three path fields' save: config.json at once, as the
+// music folder is saved as it is typed. Nothing reads them until the next
+// sync (or, for the log, the next start).
+func (u *UI) setPath(dst *string, v string) {
+	v = strings.TrimSpace(v)
+	if v == *dst {
+		return
+	}
+	*dst = v
+	u.saveConfig()
+}
+
+// pathPick says which Settings field a picker's answer is for.
+type pathPick int
+
+const (
+	pickPlaylists pathPick = iota + 1
+	pickGenreMap
+	pickLogFolder
+)
+
+// pickedPath is one picker answer on its way from the dialog's goroutine
+// to drain.
+type pickedPath struct {
+	kind pathPick
+	path string
+}
+
+// choosePath is Browse… on one of the three C3 path rows: the OS dialog on
+// its own goroutine, its answer landing in drain (applyPicked).
+func (u *UI) choosePath(kind pathPick) {
+	go func() {
+		var (
+			path string
+			err  error
+		)
+		switch kind {
+		case pickGenreMap:
+			path, err = pickFileKind(context.Background(), genreMapFile)
+		case pickPlaylists:
+			path, err = pickFolderPrompt(context.Background(), "Choose the playlists folder")
+		default:
+			path, err = pickFolderPrompt(context.Background(), "Choose the folder for the log")
+		}
+		if err != nil {
+			u.Post(Event{Kind: EventLog, Text: "picker: " + err.Error()})
+			return
+		}
+		if path == "" {
+			return
+		}
+		u.mu.Lock()
+		u.newPicked = &pickedPath{kind, path}
+		u.mu.Unlock()
+		u.invalidate()
+	}()
+}
+
+// applyPicked puts a picker's answer in its field and the file.
+func (u *UI) applyPicked(p pickedPath) {
+	var ed *widget.Editor
+	var dst *string
+	path := p.path
+	switch p.kind {
+	case pickPlaylists:
+		dst = &u.cfg.PlaylistsDir
+	case pickGenreMap:
+		dst = &u.cfg.GenreMap
+	case pickLogFolder:
+		dst = &u.cfg.LogFile
+		path = filepath.Join(path, logFileName)
+	default:
+		return
+	}
+	if s := u.settings; s != nil {
+		switch p.kind {
+		case pickPlaylists:
+			ed = &s.playlistsEd
+		case pickGenreMap:
+			ed = &s.genreEd
+		default:
+			ed = &s.logEd
+		}
+		ed.SetText(path)
+	}
+	u.setPath(dst, path)
 }
 
 // tickEvents is the four ticks' half of the frame, from the Fix tab and
@@ -413,7 +664,8 @@ func (u *UI) saveWindowLater(gtx C) {
 // restoreBody is the Restore defaults question.
 const restoreBody = "Every setting goes back to how it was the first time the app opened — the theme, " +
 	"the Fix all ticks, the small-cover line, the backup folder, ReplayGain, the volume, the window " +
-	"size and the tab. The music folder and your iPods' names are kept."
+	"size and the tab, and the cover, sync, update and log choices. The music folder and your iPods' " +
+	"names are kept."
 
 // askRestore asks once, in the ordinary dialog, and restores on a yes.
 func (u *UI) askRestore() {
@@ -446,19 +698,28 @@ func (u *UI) restoreDefaults() {
 	u.st.FixNames, u.st.Organize, u.st.FixLowRes, u.st.DiscFolders = true, true, true, false
 	u.namesTick.Value, u.organizeTick.Value, u.lowResTick.Value, u.discTick.Value = true, true, true, false
 
-	if ls, ok := u.be.(liveSettings); ok {
+	if ls := u.live(); ls != nil {
 		ls.SetBackupDir("")
 		ls.SetMinArtPx(0)
+		ls.SetOnlineArt(true)
+		ls.SetCheckDuplicates(true)
+		ls.SetPrereleases(false)
+		ls.SetKeepBackups(0)
 	}
 	u.win.dirty = false
 	u.savedTab = u.st.Tab
 	if s := u.settings; s != nil {
 		s.rgTick.Value, s.winTick.Value, s.tabTick.Value = true, true, true
+		s.onlineTick.Value, s.dupTick.Value = true, true
+		s.verifyTick.Value, s.ejectTick.Value, s.preTick.Value = false, false, false
+		s.playlistsEd.SetText("")
+		s.genreEd.SetText("")
+		s.logEd.SetText("")
 	}
 	u.saveConfig()
 	u.st.Logf("settings: back to the defaults")
 
-	if old.DiscFolders || old.MinArtPx != 0 {
+	if old.DiscFolders || old.MinArtPx != 0 || !old.CheckDuplicatesOn() {
 		u.rescanSoon()
 	}
 	if old.BackupDir != "" && u.be != nil {
@@ -525,8 +786,77 @@ func (u *UI) settingsEvents(gtx C) {
 	if s.cfgShow.Clicked(gtx) {
 		u.openDir(filepath.Dir(u.configPathShown()))
 	}
+	u.behaviourEvents(gtx, busy)
 	if s.restoreBtn.Clicked(gtx) {
 		u.askRestore()
+	}
+}
+
+// behaviourEvents is the C3 rows' half of the frame.
+func (u *UI) behaviourEvents(gtx C, busy bool) {
+	s := u.settings
+	for _, f := range []struct {
+		ed  *widget.Editor
+		dst *string
+	}{{&s.playlistsEd, &u.cfg.PlaylistsDir}, {&s.genreEd, &u.cfg.GenreMap}, {&s.logEd, &u.cfg.LogFile}} {
+		for {
+			ev, ok := f.ed.Update(gtx)
+			if !ok {
+				break
+			}
+			switch ev.(type) {
+			case widget.ChangeEvent, widget.SubmitEvent:
+				u.setPath(f.dst, f.ed.Text())
+			}
+		}
+	}
+	if s.playlistsBrowse.Clicked(gtx) && !busy {
+		u.choosePath(pickPlaylists)
+	}
+	if s.playlistsDefault.Clicked(gtx) {
+		s.playlistsEd.SetText("")
+		u.setPath(&u.cfg.PlaylistsDir, "")
+	}
+	if s.genreBrowse.Clicked(gtx) && !busy {
+		u.choosePath(pickGenreMap)
+	}
+	if s.genreBuiltin.Clicked(gtx) {
+		s.genreEd.SetText("")
+		u.setPath(&u.cfg.GenreMap, "")
+	}
+	if s.logBrowse.Clicked(gtx) {
+		u.choosePath(pickLogFolder)
+	}
+	if s.logShow.Clicked(gtx) && u.cfg.LogFile != "" {
+		u.openDir(filepath.Dir(u.cfg.LogFile))
+	}
+	if s.onlineTick.Update(gtx) {
+		u.setOnlineArt(s.onlineTick.Value)
+	}
+	if s.dupTick.Update(gtx) {
+		u.setCheckDuplicates(s.dupTick.Value)
+	}
+	if s.verifyTick.Update(gtx) {
+		u.cfg.VerifySync = s.verifyTick.Value
+		u.saveConfig()
+	}
+	if s.ejectTick.Update(gtx) {
+		u.cfg.EjectAfterSync = s.ejectTick.Value
+		u.saveConfig()
+	}
+	if s.preTick.Update(gtx) {
+		u.setPrereleases(s.preTick.Value)
+	}
+	for i := range s.keepClicks {
+		if s.keepClicks[i].Clicked(gtx) {
+			u.setKeepBackups(keepChoices[i].n)
+		}
+	}
+	for i := range s.updClicks {
+		if s.updClicks[i].Clicked(gtx) && u.cfg.UpdateCheck != updateChoices[i].value {
+			u.cfg.UpdateCheck = updateChoices[i].value
+			u.saveConfig()
+		}
 	}
 }
 
@@ -620,9 +950,11 @@ func (u *UI) settingsList(gtx C) D {
 	s := u.settings
 	items := []layout.Widget{
 		u.setHeading(setLibrary), u.libraryRows,
+		u.setHeading(setSync), u.syncRows,
 		u.setHeading(setFirmware), u.firmwareRows,
 		u.setHeading(setPlayback), u.playbackRows,
 		u.setHeading(setAppearance), u.appearanceRows,
+		u.setHeading(setDiagnostics), u.diagnosticsRows,
 		u.settingsFile,
 	}
 	list := material.List(u.th, &s.list)
@@ -671,7 +1003,9 @@ func (u *UI) valueSub(value layout.Widget, sub string) layout.Widget {
 				if sub == "" {
 					return D{}
 				}
-				return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, u.line(11, u.pal.Muted2, sub))
+				// Two lines at most: the cover row's sub-line names three
+				// providers and what off means, and cut short it would not.
+				return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, u.wrapN(11, u.pal.Muted2, sub, 2))
 			}),
 		)
 	}
@@ -682,6 +1016,14 @@ func (u *UI) libraryRows(gtx C) D {
 	return u.setRows(gtx,
 		func(gtx C) D {
 			return u.rowFrame(gtx, setMusicFolder, func(gtx C) D { return u.sourceRow(gtx, busy) }, nil)
+		},
+		func(gtx C) D {
+			s := u.settings
+			return u.rowFrame(gtx, setPlaylists, u.valueSub(func(gtx C) D {
+				return u.pathField(gtx, &s.playlistsEd, setDefault,
+					btn{&s.playlistsBrowse, setBrowse, false, !busy && u.pickerOK},
+					btn{&s.playlistsDefault, setDefault, false, u.cfg.PlaylistsDir != ""})
+			}, u.playlistsSub()), nil)
 		},
 		func(gtx C) D {
 			return u.rowFrame(gtx, setFixAll, func(gtx C) D {
@@ -704,6 +1046,65 @@ func (u *UI) libraryRows(gtx C) D {
 				return u.radios(gtx, s.artClicks[:], labels, sel)
 			}, u.minArtNote()), nil)
 		},
+		func(gtx C) D {
+			s := u.settings
+			return u.rowFrame(gtx, setCovers, u.valueSub(func(gtx C) D {
+				return u.setTick(gtx, &s.onlineTick, setOnline)
+			}, setOnlineSub), nil)
+		},
+		func(gtx C) D {
+			s := u.settings
+			return u.rowFrame(gtx, setDuplicates, func(gtx C) D {
+				return u.setTick(gtx, &s.dupTick, setDupTick)
+			}, nil)
+		},
+	)
+}
+
+// syncRows is the Sync section: how copies are compared, the eject after,
+// and the genre map. None of it changes what a sync writes (rule 5).
+func (u *UI) syncRows(gtx C) D {
+	s := u.settings
+	busy := u.st.Busy()
+	return u.setRows(gtx,
+		func(gtx C) D {
+			return u.rowFrame(gtx, setCopies, func(gtx C) D {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(u.valueSub(func(gtx C) D { return u.setTick(gtx, &s.verifyTick, setVerify) },
+						setVerifySub)),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(4)}.Layout),
+					layout.Rigid(func(gtx C) D { return u.setTick(gtx, &s.ejectTick, setEject) }),
+				)
+			}, nil)
+		},
+		func(gtx C) D {
+			return u.rowFrame(gtx, setGenreMap, u.valueSub(func(gtx C) D {
+				return u.pathField(gtx, &s.genreEd, setBuiltin,
+					btn{&s.genreBrowse, setBrowse, false, !busy && u.pickerOK},
+					btn{&s.genreBuiltin, setBuiltin, false, u.cfg.GenreMap != ""})
+			}, setGenreSub), nil)
+		},
+	)
+}
+
+// diagnosticsRows is the log file.
+func (u *UI) diagnosticsRows(gtx C) D {
+	s := u.settings
+	return u.setRows(gtx, func(gtx C) D {
+		return u.rowFrame(gtx, setLogFile, u.valueSub(func(gtx C) D {
+			return u.pathField(gtx, &s.logEd, "None",
+				btn{&s.logBrowse, setBrowse, false, u.pickerOK},
+				btn{&s.logShow, setShowFolder, false, u.cfg.LogFile != ""})
+		}, setLogSub), nil)
+	})
+}
+
+// pathField is a path row's body: the field, then its buttons.
+func (u *UI) pathField(gtx C, ed *widget.Editor, hint string, bs ...btn) D {
+	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+		layout.Flexed(1, func(gtx C) D { return u.field(gtx, ed, hint) }),
+		layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
+		layout.Rigid(func(gtx C) D { return u.buttonRow(gtx, bs...) }),
 	)
 }
 
@@ -717,6 +1118,18 @@ func (u *UI) firmwareRows(gtx C) D {
 	// The path has the row's whole width and the buttons go under it: a
 	// backup folder is a long path, and one cut short is a folder nobody
 	// can find.
+	keepLabels := make([]string, len(keepChoices))
+	for i, c := range keepChoices {
+		keepLabels[i] = c.label
+	}
+	updLabels := make([]string, len(updateChoices))
+	updSel := 0
+	for i, c := range updateChoices {
+		updLabels[i] = c.label
+		if c.value == u.cfg.UpdateCheck {
+			updSel = i
+		}
+	}
 	return u.setRows(gtx, func(gtx C) D {
 		return u.rowFrame(gtx, setBackupDir, func(gtx C) D {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -737,7 +1150,23 @@ func (u *UI) firmwareRows(gtx C) D {
 				}),
 			)
 		}, nil)
-	})
+	},
+		func(gtx C) D {
+			return u.rowFrame(gtx, setKeep, u.valueSub(func(gtx C) D {
+				return u.radios(gtx, s.keepClicks[:], keepLabels, keepIndex(u.cfg.KeepBackups))
+			}, u.keepNote()), nil)
+		},
+		func(gtx C) D {
+			return u.rowFrame(gtx, setUpdates, func(gtx C) D {
+				return u.radios(gtx, s.updClicks[:], updLabels, updSel)
+			}, nil)
+		},
+		func(gtx C) D {
+			return u.rowFrame(gtx, setPreRow, u.valueSub(func(gtx C) D {
+				return u.setTick(gtx, &s.preTick, setPre)
+			}, setPreSub), nil)
+		},
+	)
 }
 
 func (u *UI) playbackRows(gtx C) D {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/BrandonDedolph/core-desktop-app/internal/disk"
@@ -41,14 +42,16 @@ var installDeviceFunc = inspectInstallDevice
 
 func newInstallCmd() *cobra.Command {
 	var (
-		yes        bool
-		dryRun     bool
-		force      bool
-		backupDir  string
-		untested   bool
-		noRelaunch bool
-		repo       string
-		tag        string
+		yes         bool
+		dryRun      bool
+		force       bool
+		backupDir   string
+		untested    bool
+		noRelaunch  bool
+		repo        string
+		tag         string
+		prereleases bool
+		keepBackups int
 	)
 	cmd := &cobra.Command{
 		Use:   "install [core.ipod]",
@@ -90,14 +93,16 @@ mode: Select+Menu to reset, then Select+Play at the Apple logo.`,
 			// on as --backup-dir (see update.go).
 			backupDir, _ = resolveBackupDir(cmd, backupDir)
 			o := installOptions{
-				Yes:        yes,
-				DryRun:     dryRun,
-				Force:      force,
-				BackupDir:  backupDir,
-				Untested:   untested,
-				NoRelaunch: noRelaunch,
-				Repo:       strings.TrimSpace(repo),
-				Tag:        strings.TrimSpace(tag),
+				Prereleases: resolveBoolFlag(cmd, "prereleases", "prereleases", prereleases),
+				KeepBackups: resolveKeepBackups(cmd, keepBackups),
+				Yes:         yes,
+				DryRun:      dryRun,
+				Force:       force,
+				BackupDir:   backupDir,
+				Untested:    untested,
+				NoRelaunch:  noRelaunch,
+				Repo:        strings.TrimSpace(repo),
+				Tag:         strings.TrimSpace(tag),
 			}
 			if len(args) == 1 {
 				o.Image = args[0]
@@ -122,19 +127,24 @@ mode: Select+Menu to reset, then Select+Play at the Apple logo.`,
 		"GitHub repository to read releases from, as owner/name")
 	cmd.Flags().StringVar(&tag, "tag", "",
 		"Install this release instead of the latest (e.g. v0.1.3)")
+	cmd.Flags().BoolVar(&prereleases, "prereleases", false,
+		"Also consider releases GitHub marks as pre-releases (default: prereleases in core config)")
+	addKeepBackupsFlag(cmd, &keepBackups)
 	return cmd
 }
 
 type installOptions struct {
-	Image      string
-	Yes        bool
-	DryRun     bool
-	Force      bool
-	BackupDir  string
-	Untested   bool
-	NoRelaunch bool
-	Repo       string
-	Tag        string
+	Prereleases bool
+	KeepBackups int
+	Image       string
+	Yes         bool
+	DryRun      bool
+	Force       bool
+	BackupDir   string
+	Untested    bool
+	NoRelaunch  bool
+	Repo        string
+	Tag         string
 }
 
 // installDevice is what the classification step found. It is an alias
@@ -149,14 +159,15 @@ func runInstall(cmd *cobra.Command, o installOptions) error {
 	}
 
 	res, err := installer.Install(cmd.Context(), installer.Options{
-		Image:      o.Image,
-		Device:     deviceFlag(cmd),
-		Yes:        o.Yes,
-		DryRun:     o.DryRun,
-		Force:      o.Force,
-		BackupDir:  o.BackupDir,
-		Untested:   o.Untested,
-		NoRelaunch: o.NoRelaunch,
+		Image:       o.Image,
+		Device:      deviceFlag(cmd),
+		Yes:         o.Yes,
+		DryRun:      o.DryRun,
+		Force:       o.Force,
+		BackupDir:   o.BackupDir,
+		KeepBackups: o.KeepBackups,
+		Untested:    o.Untested,
+		NoRelaunch:  o.NoRelaunch,
 	}, installer.Deps{
 		Inspect:      func(context.Context) (installer.Device, error) { return installDeviceFunc(cmd) },
 		ResolveImage: func(context.Context) (string, error) { return installReleaseImage(cmd, o) },
@@ -191,7 +202,7 @@ func runInstall(cmd *cobra.Command, o installOptions) error {
 // update`'s release client, cache and checksum verification verbatim.
 func installReleaseImage(cmd *cobra.Command, o installOptions) (string, error) {
 	out := cmd.OutOrStdout()
-	rel, err := fetchRelease(cmd.Context(), updateOptions{Repo: o.Repo, Tag: o.Tag})
+	rel, err := fetchRelease(cmd.Context(), updateOptions{Repo: o.Repo, Tag: o.Tag, Prereleases: o.Prereleases})
 	if err != nil {
 		return "", err
 	}
@@ -219,6 +230,9 @@ func installChildArgs(cmd *cobra.Command, o installOptions, image string) []stri
 	}
 	if o.BackupDir != "" {
 		args = append(args, "--backup-dir", o.BackupDir)
+	}
+	if o.KeepBackups > 0 {
+		args = append(args, "--"+keepBackupsFlag, strconv.Itoa(o.KeepBackups))
 	}
 	if o.Untested {
 		args = append(args, "--untested-hardware")

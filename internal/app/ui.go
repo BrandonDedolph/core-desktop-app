@@ -336,6 +336,9 @@ type UI struct {
 	// autoChecked records that this launch has asked GitHub once by
 	// itself; the menu's Check for updates asks again.
 	autoChecked bool
+	// syncWrote is set (under mu) by a sync job whose real sync ended with
+	// no error, and read once by afterJob: Eject when a sync finishes.
+	syncWrote bool
 
 	pickerOK bool
 
@@ -346,6 +349,8 @@ type UI struct {
 	// seen, so a change is saved once (rememberTab).
 	settings     *settingsSheet
 	newBackupDir string
+	// newPicked is a C3 path row's picker answer (settings.go), under mu.
+	newPicked    *pickedPath
 	rescanQueued bool
 	win          winState
 	savedTab     Tab
@@ -527,6 +532,8 @@ func (u *UI) drain() {
 	u.newPath, u.pathFor = "", JobNone
 	backupDir := u.newBackupDir
 	u.newBackupDir = ""
+	picked := u.newPicked
+	u.newPicked = nil
 	renamed := u.newName
 	u.newName = nil
 	detected := u.newDetect
@@ -616,6 +623,9 @@ func (u *UI) drain() {
 	}
 	if backupDir != "" {
 		u.setBackupDir(backupDir)
+	}
+	if picked != nil {
+		u.applyPicked(*picked)
 	}
 	if report != nil {
 		u.st.Report, u.st.Scanned = report, time.Now()
@@ -713,6 +723,17 @@ func (u *UI) afterJob(e Event) {
 		// The counts in the footer and the header's free space are the
 		// volume's; a sync just changed both.
 		u.later(u.startRefresh)
+		u.mu.Lock()
+		wrote := u.syncWrote
+		u.syncWrote = false
+		u.mu.Unlock()
+		// Eject when a sync finishes: only after one that copied with no
+		// error — a preview closed, a cancel or a failure leaves the iPod
+		// mounted, where the person can see what happened. The refresh
+		// goes first so the header's counts are the synced ones.
+		if wrote && u.cfg.EjectAfterSync {
+			u.later(u.startEject)
+		}
 	case JobRefresh:
 		// The two read-only passes over the music folder first: they fill
 		// the grid and the Library tab, and the Runner takes one job at
@@ -729,7 +750,9 @@ func (u *UI) afterJob(e Event) {
 		// Then, once per launch, the first time an iPod is there: ask
 		// GitHub whether there is something newer, so Update appears
 		// without anybody pressing Check.
-		if !u.autoChecked && u.st.Device.Found {
+		// Check for updates: Never turns this off; the menu's item
+		// still asks.
+		if !u.autoChecked && u.st.Device.Found && u.cfg.UpdateCheck != UpdateCheckNever {
 			u.autoChecked = true
 			u.later(u.startLaunchCheck)
 		}

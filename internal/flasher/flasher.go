@@ -47,6 +47,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -74,6 +75,12 @@ type Options struct {
 	Yes bool
 	// BackupDir overrides <user config dir>/core/backups.
 	BackupDir string
+	// KeepBackups is how many fwpart-* backups to leave in the backup
+	// folder once this run's backup is written and verified, newest
+	// first by the time in their names; 0 keeps them all. The one just
+	// written is always kept, and apple-* (and anything else) is never
+	// touched. With DryRun, what would go is printed instead.
+	KeepBackups int
 	// Untested allows writing to hardware outside the tested window.
 	Untested bool
 	// NoRelaunch forbids starting an elevated copy of this binary. The
@@ -308,6 +315,7 @@ func (f *flash) run(ctx context.Context) error {
 		return err
 	}
 	if f.o.DryRun {
+		f.retainBackups(true)
 		fmt.Fprintf(f.out, "\n--dry-run: nothing was opened for writing and no backup was taken.\n")
 		return nil
 	}
@@ -962,7 +970,141 @@ func (f *flash) backup() error {
 	}
 	f.res.BackupPath = path
 	fmt.Fprintf(f.out, "backup       %s (fsynced, re-parsed, OSOS present)\n", path)
+	// Only now: an old backup is removed when there is a newer one on
+	// disk that has been read back, never before.
+	f.retainBackups(false)
 	return nil
+}
+
+// retainBackups is keep_backups: after this run's backup has verified,
+// remove the older fwpart-* files beyond the newest KeepBackups. A
+// failure to remove one is a line, not a failed flash — the write the
+// person asked for does not depend on the folder being tidy.
+func (f *flash) retainBackups(dryRun bool) {
+	if f.o.KeepBackups <= 0 || f.backupAt == "" {
+		return
+	}
+	keep := []string{f.backupAt}
+	if f.o.FromBackup != "" {
+		// The file being restored may live in this folder; it is not
+		// removed out from under its own restore.
+		keep = append(keep, f.o.FromBackup)
+	}
+	drop := backupsToRemove(filepath.Dir(f.backupAt), f.o.KeepBackups, keep)
+	for _, p := range drop {
+		if dryRun {
+			fmt.Fprintf(f.out, "would remove %s (keep_backups %d)\n", p, f.o.KeepBackups)
+			continue
+		}
+		if err := os.Remove(p); err != nil {
+			fmt.Fprintf(f.out, "warning: could not remove the old backup %s: %v\n", p, err)
+			continue
+		}
+		fmt.Fprintf(f.out, "removed      %s (keep_backups %d)\n", p, f.o.KeepBackups)
+	}
+}
+
+// backupsToRemove lists the fwpart-* backups in dir beyond the newest n.
+//
+// Newest is the time in the NAME (BackupFileName), not the directory's
+// order and not the file's mtime: a copy restored from elsewhere, or a
+// folder synced between machines, carries mtimes that say nothing about
+// when the backup was taken. A name that does not parse falls back to
+// its mtime. Every path in pinned that is a fwpart-* file counts as one
+// of the n and is never listed, whether or not it exists yet (a dry run
+// pins the backup it has not written). Nothing but fwpart-*.bin is ever
+// listed: apple-* is the only copy of a device's original firmware.
+func backupsToRemove(dir string, n int, pinned []string) []string {
+	if n <= 0 {
+		return nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	isPinned := map[string]bool{}
+	slots := 0
+	for _, p := range pinned {
+		if p == "" {
+			continue
+		}
+		name := filepath.Base(p)
+		if filepath.Clean(filepath.Dir(p)) == filepath.Clean(dir) {
+			isPinned[name] = true
+			if isFWPartName(name) {
+				slots++
+			}
+		}
+	}
+	type cand struct {
+		name string
+		at   time.Time
+	}
+	var cands []cand
+	for _, e := range entries {
+		name := e.Name()
+		if !e.Type().IsRegular() || !isFWPartName(name) || isPinned[name] {
+			continue
+		}
+		at, ok := backupTime(name)
+		if !ok {
+			info, err := e.Info()
+			if err != nil {
+				continue
+			}
+			at = info.ModTime()
+		}
+		cands = append(cands, cand{name, at})
+	}
+	sort.Slice(cands, func(i, j int) bool {
+		if !cands[i].at.Equal(cands[j].at) {
+			return cands[i].at.After(cands[j].at)
+		}
+		return cands[i].name > cands[j].name
+	})
+	room := n - slots
+	if room < 0 {
+		room = 0
+	}
+	var out []string
+	for i, c := range cands {
+		if i >= room {
+			out = append(out, filepath.Join(dir, c.name))
+		}
+	}
+	return out
+}
+
+// isFWPartName is the shape BackupFileName gives: fwpart-*.bin.
+func isFWPartName(name string) bool {
+	return strings.HasPrefix(name, "fwpart-") && strings.HasSuffix(name, ".bin")
+}
+
+// backupTime reads the time back out of a BackupFileName:
+// fwpart-<size>-<RFC3339 with colons as dashes>.bin. The clock's three
+// fields are the eight characters after the T; what follows them is Z
+// or a ±hh-mm offset, whose one dash was its colon.
+func backupTime(name string) (time.Time, bool) {
+	rest := strings.TrimSuffix(strings.TrimPrefix(name, "fwpart-"), ".bin")
+	i := strings.IndexByte(rest, '-')
+	if i <= 0 {
+		return time.Time{}, false
+	}
+	stamp := rest[i+1:]
+	t := strings.IndexByte(stamp, 'T')
+	if t < 0 || len(stamp) < t+9 {
+		return time.Time{}, false
+	}
+	clock := strings.ReplaceAll(stamp[t+1:t+9], "-", ":")
+	zone := stamp[t+9:]
+	if len(zone) == 6 && zone[3] == '-' {
+		zone = zone[:3] + ":" + zone[4:]
+	}
+	at, err := time.Parse(time.RFC3339, stamp[:t+1]+clock+zone)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return at, true
 }
 
 // verifyBackupFile re-reads a just-written backup and requires it to be

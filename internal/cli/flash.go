@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 
 	"github.com/BrandonDedolph/core-desktop-app/internal/disk"
 	"github.com/BrandonDedolph/core-desktop-app/internal/flasher"
@@ -30,12 +31,13 @@ func (e *ExitError) Unwrap() error { return e.Err }
 
 func newFlashCmd() *cobra.Command {
 	var (
-		fromBackup string
-		dryRun     bool
-		yes        bool
-		backupDir  string
-		untested   bool
-		noRelaunch bool
+		fromBackup  string
+		dryRun      bool
+		yes         bool
+		backupDir   string
+		untested    bool
+		noRelaunch  bool
+		keepBackups int
 	)
 	cmd := &cobra.Command{
 		Use:   "flash [core.ipod | core.bin]",
@@ -91,14 +93,19 @@ Select+Menu to reset, then Select+Play at the Apple logo.`,
 				childArgs = append(append([]string{}, childArgs...), "--backup-dir", dir)
 			}
 			backupDir = dir
+			if keepBackups = resolveKeepBackups(cmd, keepBackups); keepBackups > 0 &&
+				!cmd.Flags().Changed(keepBackupsFlag) {
+				childArgs = append(append([]string{}, childArgs...), "--"+keepBackupsFlag, strconv.Itoa(keepBackups))
+			}
 			o := flasher.Options{
-				FromBackup: fromBackup,
-				Device:     deviceFlag(cmd),
-				DryRun:     dryRun,
-				Yes:        yes,
-				BackupDir:  backupDir,
-				Untested:   untested,
-				NoRelaunch: noRelaunch,
+				KeepBackups: keepBackups,
+				FromBackup:  fromBackup,
+				Device:      deviceFlag(cmd),
+				DryRun:      dryRun,
+				Yes:         yes,
+				BackupDir:   backupDir,
+				Untested:    untested,
+				NoRelaunch:  noRelaunch,
 			}
 			if len(args) == 1 {
 				o.Image = args[0]
@@ -145,5 +152,6 @@ Select+Menu to reset, then Select+Play at the Apple logo.`,
 		"Write to an iPod outside the tested capacity window ("+disk.TestedModel+" only)")
 	cmd.Flags().BoolVar(&noRelaunch, "no-relaunch", false,
 		"Never start an elevated copy of this command; refuse and print the command instead")
+	addKeepBackupsFlag(cmd, &keepBackups)
 	return cmd
 }

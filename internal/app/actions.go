@@ -80,6 +80,7 @@ func (u *UI) startSync(kind JobKind) {
 	src := strings.TrimSpace(u.sourceEd.Text())
 	dst := u.st.Device.Volume
 	tooOld := u.st.FirmwareTooOld()
+	set := u.syncSettings()
 	u.start(kind, func(ctx context.Context, emit func(Event)) error {
 		if src == "" {
 			return fmt.Errorf("no music folder: choose it on the Fix tab")
@@ -90,7 +91,7 @@ func (u *UI) startSync(kind JobKind) {
 		if tooOld && kind != JobDryRun {
 			return fmt.Errorf("%s", TooOldText)
 		}
-		o := syncer.Options{Src: src, Dst: dst, GenreMap: library.GenreMapEmbedded}
+		o := set.options(src, dst, emit)
 		switch kind {
 		case JobDryRun:
 			o.DryRun = true
@@ -100,6 +101,7 @@ func (u *UI) startSync(kind JobKind) {
 		case JobSync:
 			plan, err := u.be.Sync(ctx, o, emit)
 			u.publishPlan(plan, err == nil)
+			u.noteSyncWrote(err)
 			return err
 		}
 
@@ -128,6 +130,7 @@ func (u *UI) startSync(kind JobKind) {
 		if len(plan.Prune) == 0 {
 			emit(Event{Kind: EventLog, Text: "nothing to remove; running a plain sync instead"})
 			_, err := u.be.Sync(ctx, o, emit)
+			u.noteSyncWrote(err)
 			return err
 		}
 		for _, p := range plan.Prune {
@@ -143,8 +146,54 @@ func (u *UI) startSync(kind JobKind) {
 		o.Prune, o.Yes = true, true
 		plan, err = u.be.Sync(ctx, o, emit)
 		u.publishPlan(plan, err == nil)
+		u.noteSyncWrote(err)
 		return err
 	})
+}
+
+// syncSettings is the four Settings rows a sync reads, taken on the UI
+// goroutine when the job starts, so a change mid-sync applies to the next
+// one and the job never reads u.cfg from its own goroutine.
+type syncSettings struct {
+	verify    bool
+	playlists string
+	genreMap  string
+}
+
+func (u *UI) syncSettings() syncSettings {
+	return syncSettings{
+		verify:    u.cfg.VerifySync,
+		playlists: strings.TrimSpace(u.cfg.PlaylistsDir),
+		genreMap:  strings.TrimSpace(u.cfg.GenreMap),
+	}
+}
+
+// options is the syncer.Options a sync button runs with. A genre map
+// that does not load is a log line and the built-in map, never a sync
+// that refuses to start: the map only fills in genres the tags lack.
+func (s syncSettings) options(src, dst string, emit func(Event)) syncer.Options {
+	o := syncer.Options{Src: src, Dst: dst, GenreMap: library.GenreMapEmbedded,
+		Verify: s.verify, Playlists: s.playlists}
+	if s.genreMap != "" {
+		if _, err := library.LoadGenreMap(s.genreMap); err != nil {
+			emit(Event{Kind: EventLog, Text: "genre map: " + firstLine(err.Error()) + "; using the built-in one"})
+		} else {
+			o.GenreMap = s.genreMap
+		}
+	}
+	return o
+}
+
+// noteSyncWrote records that a sync job got as far as a real sync that
+// ended with no error — the one ending Eject when a sync finishes acts on.
+// A preview, a cancel and a failure leave it unset. Job goroutine.
+func (u *UI) noteSyncWrote(err error) {
+	if err != nil {
+		return
+	}
+	u.mu.Lock()
+	u.syncWrote = true
+	u.mu.Unlock()
 }
 
 // startSyncPreview is the sync a person starts: the header's "Sync N
@@ -157,6 +206,7 @@ func (u *UI) startSyncPreview() {
 	src := strings.TrimSpace(u.sourceEd.Text())
 	dst := u.st.Device.Volume
 	tooOld := u.st.FirmwareTooOld()
+	set := u.syncSettings()
 	u.start(JobSync, func(ctx context.Context, emit func(Event)) error {
 		if src == "" {
 			return fmt.Errorf("no music folder: choose it on the Fix tab")
@@ -164,7 +214,7 @@ func (u *UI) startSyncPreview() {
 		if dst == "" {
 			return fmt.Errorf("no iPod volume: plug the iPod in (disk mode: Select+Play) — this window finds it on its own")
 		}
-		o := syncer.Options{Src: src, Dst: dst, GenreMap: library.GenreMapEmbedded}
+		o := set.options(src, dst, emit)
 		dry := o
 		dry.DryRun = true
 		emit(Event{Kind: EventProgress, Text: "working out what to copy", Pct: -1})
@@ -191,6 +241,7 @@ func (u *UI) startSyncPreview() {
 		}
 		plan, err = u.be.Sync(ctx, o, emit)
 		u.publishPlan(plan, err == nil)
+		u.noteSyncWrote(err)
 		return err
 	})
 }

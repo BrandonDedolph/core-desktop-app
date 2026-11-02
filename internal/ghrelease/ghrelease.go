@@ -107,6 +107,11 @@ type Client struct {
 	// Token is sent as a bearer token when non-empty. New takes it
 	// from GITHUB_TOKEN.
 	Token string
+	// IncludePrereleases lets LatestFirmware and LatestApp choose a
+	// release GitHub marks as a pre-release (`core update --prereleases`,
+	// Settings → Include pre-releases). A draft is never chosen: it is
+	// not published, and its assets cannot be downloaded without a token.
+	IncludePrereleases bool
 }
 
 // New returns a client configured from the environment.
@@ -141,7 +146,8 @@ func (c *Client) base() string {
 func Latest(ctx context.Context, repo string) (Release, error) { return New().Latest(ctx, repo) }
 
 // LatestFirmware is the newest published firmware release: not a draft,
-// not a prerelease, a `v<digit>…` tag, and carrying the firmware image.
+// not a prerelease (see Client.IncludePrereleases), a `v<digit>…` tag,
+// and carrying the firmware image.
 func LatestFirmware(ctx context.Context, repo string) (Release, error) {
 	return New().LatestFirmware(ctx, repo)
 }
@@ -192,7 +198,7 @@ func (c *Client) newest(ctx context.Context, repo, what string, keep func(Releas
 	var best *Release
 	for i := range list {
 		r := &list[i]
-		if r.Draft || r.Prerelease || r.Tag == "" || !keep(*r) {
+		if r.Draft || (r.Prerelease && !c.IncludePrereleases) || r.Tag == "" || !keep(*r) {
 			continue
 		}
 		if best == nil || r.Published.After(best.Published) {
