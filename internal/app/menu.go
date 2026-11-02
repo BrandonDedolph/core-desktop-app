@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"strings"
 
-	"gioui.org/f32"
 	"gioui.org/font"
 	"gioui.org/io/clipboard"
 	"gioui.org/io/key"
@@ -37,39 +36,37 @@ const (
 	menuShowLog
 	menuCopyLog
 	menuOpenMusic
-	menuReplayGain
 	menuGetApp
+	menuSettings
 	menuAbout
 	menuCount
 )
 
-// menuLabels are the words, verb first.
+// menuLabels are the words, verb first — with two nouns that are the
+// accepted exceptions, About and Settings…: everything that is a standing
+// choice rather than an action lives behind Settings… (the settings plan's
+// Rule 4: verbs in the menu, nouns in Settings).
 var menuLabels = [menuCount]string{
-	menuBackup:     "Back up the firmware",
-	menuFlashFile:  "Flash an image file…",
-	menuReread:     "Read the iPod again",
-	menuCheck:      "Check for updates",
-	menuShowLog:    "Show the log",
-	menuCopyLog:    "Copy the log",
-	menuOpenMusic:  "Open the music folder",
-	menuReplayGain: "Use ReplayGain",
-	menuGetApp:     "Get the newer app…",
-	menuAbout:      "About",
+	menuBackup:    "Back up the firmware",
+	menuFlashFile: "Flash an image file…",
+	menuReread:    "Read the iPod again",
+	menuCheck:     "Check for updates",
+	menuShowLog:   "Show the log",
+	menuCopyLog:   "Copy the log",
+	menuOpenMusic: "Open the music folder",
+	menuGetApp:    "Get the newer app…",
+	menuSettings:  "Settings…",
+	menuAbout:     "About",
 }
 
 // menuGroups puts a hairline between the firmware writes, the reads, the
-// clipboard and folder pair, the theme and About.
+// log and folder group, and the app's own (Settings…, About).
 var menuGroups = [][]int{
 	{menuBackup, menuFlashFile},
 	{menuReread, menuCheck},
 	{menuShowLog, menuCopyLog, menuOpenMusic},
-	{menuReplayGain},
-	nil, // the theme
-	{menuGetApp, menuAbout},
+	{menuGetApp, menuSettings, menuAbout},
 }
-
-// themeChoices are the radio rows under "Theme".
-var themeChoices = [3]Theme{ThemeSystem, ThemeLinen, ThemeOnyx}
 
 // menuEnabled is each item's condition. A greyed item says the thing
 // exists and is not available now, which is more use than an item that
@@ -119,11 +116,6 @@ func (u *UI) menuEvents(gtx C) {
 			return
 		}
 	}
-	for i := range u.themeClicks {
-		if u.themeClicks[i].Clicked(gtx) {
-			u.setTheme(themeChoices[i])
-		}
-	}
 	for i := range u.menuClicks {
 		if !u.menuClicks[i].Clicked(gtx) || !u.menuEnabled(i) || !u.menuVisible(i) {
 			continue
@@ -137,8 +129,8 @@ func (u *UI) menuEvents(gtx C) {
 // menuDo runs one item.
 func (u *UI) menuDo(gtx C, i int) {
 	switch i {
-	case menuReplayGain:
-		u.setReplayGain(!u.replayGainOn())
+	case menuSettings:
+		u.openSettings()
 	case menuBackup:
 		u.startBackup()
 	case menuFlashFile:
@@ -266,10 +258,6 @@ func (u *UI) menuLayer(gtx C) D {
 						return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4)}.Layout(gtx, u.hairline)
 					}))
 				}
-				if items == nil {
-					rows = append(rows, layout.Rigid(u.themeRows))
-					continue
-				}
 				for _, i := range items {
 					i := i
 					if !u.menuVisible(i) {
@@ -280,11 +268,6 @@ func (u *UI) menuLayer(gtx C) D {
 						if i == menuShowLog && u.st.LogOpen {
 							label = "Hide the log"
 						}
-						if i == menuReplayGain {
-							on := u.replayGainOn()
-							return u.menuRow(gtx, &u.menuClicks[i], label, true,
-								func(gtx C) D { return u.tickBox(gtx, on) }, on)
-						}
 						return u.menuRow(gtx, &u.menuClicks[i], label, u.menuEnabled(i), nil, false)
 					}))
 				}
@@ -294,33 +277,10 @@ func (u *UI) menuLayer(gtx C) D {
 	})
 }
 
-// themeRows is "Theme" and its three radio rows.
-func (u *UI) themeRows(gtx C) D {
-	rows := []layout.FlexChild{layout.Rigid(func(gtx C) D {
-		return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(2), Left: unit.Dp(12)}.
-			Layout(gtx, u.line(11, u.pal.Muted2, "Theme"))
-	})}
-	for i, t := range themeChoices {
-		i, t := i, t
-		label := t.String()
-		if t == ThemeSystem {
-			if u.systemNow == "" {
-				u.systemNow = ThemeSystem.Resolve()
-			}
-			label = "System — " + u.systemNow.String() + " now"
-		}
-		rows = append(rows, layout.Rigid(func(gtx C) D {
-			on := u.theme == t
-			return u.menuRow(gtx, &u.themeClicks[i], label, true,
-				func(gtx C) D { return u.radioDot(gtx, on) }, on)
-		}))
-	}
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
-}
-
 // menuRow is one clickable line. mark, when there is one, is drawn before
-// the words: the theme's radio dot, ReplayGain's tick box. on sets the words
-// in SemiBold.
+// the words; on sets the words in SemiBold. (The theme's radio rows and
+// ReplayGain's tick box used both; they live in Settings now, and the
+// parameters stay for the next item that is a state rather than an act.)
 func (u *UI) menuRow(gtx C, click *widget.Clickable, label string, enabled bool, mark layout.Widget, on bool) D {
 	if !enabled {
 		gtx = gtx.Disabled()
@@ -367,30 +327,6 @@ func (u *UI) menuRow(gtx C, click *widget.Clickable, label string, enabled bool,
 			}),
 		)
 	})
-}
-
-// tickBox is a 10 dp square: a Muted2 hairline, and filled with Ink and a
-// Surface tick when on.
-func (u *UI) tickBox(gtx C, on bool) D {
-	s := gtx.Dp(10)
-	sz := image.Pt(s, s)
-	r := gtx.Dp(2)
-	box := image.Rectangle{Max: sz}
-	if !on {
-		paint.FillShape(gtx.Ops, u.pal.Muted2, clip.UniformRRect(box, r).Op(gtx.Ops))
-		w := gtx.Dp(1)
-		paint.FillShape(gtx.Ops, u.pal.Plate, clip.UniformRRect(box.Inset(w), r-w).Op(gtx.Ops))
-		return D{Size: sz}
-	}
-	paint.FillShape(gtx.Ops, u.pal.Ink, clip.UniformRRect(box, r).Op(gtx.Ops))
-	f := float32(s)
-	var p clip.Path
-	p.Begin(gtx.Ops)
-	p.MoveTo(f32.Pt(f*0.22, f*0.52))
-	p.LineTo(f32.Pt(f*0.42, f*0.72))
-	p.LineTo(f32.Pt(f*0.78, f*0.30))
-	paint.FillShape(gtx.Ops, u.pal.Surface, clip.Stroke{Path: p.End(), Width: f * 0.14}.Op())
-	return D{Size: sz}
 }
 
 // radioDot is a 10 dp ring, with an ink centre when on.

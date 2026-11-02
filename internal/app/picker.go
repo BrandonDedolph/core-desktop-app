@@ -47,9 +47,32 @@ const (
 // installed (and on one with both).
 type lookPath func(string) (string, error)
 
+// musicPrompt is the folder dialog's title unless a caller names another.
+const musicPrompt = "Choose the music folder"
+
 // pickerCommand returns the program and arguments that ask the user for
 // a path. dir selects the folder variant.
 func pickerCommand(goos string, dir bool, look lookPath) (string, []string, error) {
+	return pickerCommandPrompt(goos, dir, musicPrompt, look)
+}
+
+// pickerCommandPrompt is pickerCommand with the folder dialog's title
+// chosen: Settings' backup folder must not open a dialog that says "Choose
+// the music folder". The prompt is always one of this package's constants
+// — it is spliced into the PowerShell and AppleScript text, so it must
+// never be anything a person typed.
+func pickerCommandPrompt(goos string, dir bool, prompt string, look lookPath) (string, []string, error) {
+	name, args, err := pickerCommandMusic(goos, dir, look)
+	if err != nil || !dir || prompt == musicPrompt {
+		return name, args, err
+	}
+	for i := range args {
+		args[i] = strings.ReplaceAll(args[i], musicPrompt, prompt)
+	}
+	return name, args, nil
+}
+
+func pickerCommandMusic(goos string, dir bool, look lookPath) (string, []string, error) {
 	switch goos {
 	case "windows":
 		script := winFilePS
@@ -102,8 +125,16 @@ func PickFolder(ctx context.Context) (string, error) { return pick(ctx, true) }
 // PickFile opens the OS file dialog.
 func PickFile(ctx context.Context) (string, error) { return pick(ctx, false) }
 
-func pick(ctx context.Context, dir bool) (string, error) {
-	name, args, err := pickerCommand(runtime.GOOS, dir, exec.LookPath)
+// pickFolderPrompt is PickFolder with its own title (one of this
+// package's constants).
+func pickFolderPrompt(ctx context.Context, prompt string) (string, error) {
+	return pickPrompt(ctx, true, prompt)
+}
+
+func pick(ctx context.Context, dir bool) (string, error) { return pickPrompt(ctx, dir, musicPrompt) }
+
+func pickPrompt(ctx context.Context, dir bool, prompt string) (string, error) {
+	name, args, err := pickerCommandPrompt(runtime.GOOS, dir, prompt, exec.LookPath)
 	if err != nil {
 		return "", err
 	}

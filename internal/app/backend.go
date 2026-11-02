@@ -162,6 +162,13 @@ type RealBackend struct {
 	// MinArtPx is config.json's min_art_px, handed to every Inspect.
 	MinArtPx int
 
+	// setMu guards BackupDir and MinArtPx once the window is up: Settings
+	// changes them on the UI goroutine (SetBackupDir, SetMinArtPx) while a
+	// job may be reading them on its own. The fields stay exported so the
+	// wiring in cmd/core-app and the tests can fill them before anything
+	// runs.
+	setMu sync.Mutex
+
 	// art is the shared artfetch client, built once: its cache and its
 	// one-request-a-second MusicBrainz limiter have to be shared across
 	// every lookup the window makes.
@@ -173,6 +180,43 @@ type RealBackend struct {
 func NewRealBackend(backupDir string) *RealBackend {
 	cli, _ := CLIPath()
 	return &RealBackend{CLI: cli, BackupDir: backupDir, Repo: ghrelease.DefaultRepo, AppRepo: ghrelease.AppRepo, GOOS: runtime.GOOS}
+}
+
+// SetBackupDir re-points every later backup, flash and install at dir
+// ("" is flasher.DefaultBackupDir) without a restart — Settings → Backup
+// folder. A write already running keeps the folder it started with.
+func (b *RealBackend) SetBackupDir(dir string) {
+	b.setMu.Lock()
+	b.BackupDir = dir
+	b.setMu.Unlock()
+}
+
+// SetMinArtPx changes the low-resolution line for every later Inspect —
+// Settings' picker. config.json's meaning: 0 is the default, below 0 off.
+func (b *RealBackend) SetMinArtPx(px int) {
+	b.setMu.Lock()
+	b.MinArtPx = px
+	b.setMu.Unlock()
+}
+
+// backupDir is the folder backups go to now: the configured one, else the
+// CLI's default — the two must agree, or `core flash --from-backup` would
+// look in the wrong place for a backup the app took. "" only when the
+// user config directory itself cannot be found.
+func (b *RealBackend) backupDir() string {
+	b.setMu.Lock()
+	dir := b.BackupDir
+	b.setMu.Unlock()
+	if dir == "" {
+		dir, _ = flasher.DefaultBackupDir()
+	}
+	return dir
+}
+
+func (b *RealBackend) minArtPx() int {
+	b.setMu.Lock()
+	defer b.setMu.Unlock()
+	return b.MinArtPx
 }
 
 // CLIPath finds the `core` CLI that ships beside the app.
@@ -308,12 +352,7 @@ func (b *RealBackend) Install(ctx context.Context, o installer.Options, emit fun
 	confirm func(prompt string) (string, error)) (*installer.Result, error) {
 	dir := o.BackupDir
 	if dir == "" {
-		dir = b.BackupDir
-	}
-	if dir == "" {
-		if d, err := flasher.DefaultBackupDir(); err == nil {
-			dir = d
-		}
+		dir = b.backupDir()
 	}
 	o.BackupDir = dir
 	deps := buildInstallDeps(b, dir, confirm, emitWriter(emit))
@@ -508,12 +547,7 @@ func (b *RealBackend) Download(ctx context.Context, rel Release, emit func(Event
 // confirmation, read-back verify.
 func (b *RealBackend) Flash(ctx context.Context, file string,
 	confirm func(prompt string) (string, error), emit func(Event)) error {
-	dir := b.BackupDir
-	if dir == "" {
-		if d, err := flasher.DefaultBackupDir(); err == nil {
-			dir = d
-		}
-	}
+	dir := b.backupDir()
 	o, deps := buildFlashDeps(file, b.CLI, dir, confirm, emitWriter(emit))
 	if b.GOOS != "" {
 		deps.GOOS = b.GOOS
@@ -586,11 +620,10 @@ func (b *RealBackend) Backup(ctx context.Context, emit func(Event)) (string, err
 	}
 	defer h.Close()
 
-	dir := b.BackupDir
+	dir := b.backupDir()
 	if dir == "" {
-		if dir, err = flasher.DefaultBackupDir(); err != nil {
-			return "", err
-		}
+		_, err = flasher.DefaultBackupDir()
+		return "", err
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
@@ -736,7 +769,7 @@ func (b *RealBackend) Inspect(ctx context.Context, src string, discFolders bool,
 	return librarian.Inspect(ctx, src, librarian.Options{
 		Progress:    libEvents(emit),
 		DiscFolders: discFolders,
-		MinArtPx:    b.MinArtPx,
+		MinArtPx:    b.minArtPx(),
 	})
 }
 
@@ -821,12 +854,7 @@ const maxThumbBytes = 2 << 20
 // Backups lists the backup folder: the one the flasher writes to (the
 // configured BackupDir, else flasher.DefaultBackupDir — the CLI's).
 func (b *RealBackend) Backups(ctx context.Context, serial string) (time.Time, int, string) {
-	dir := b.BackupDir
-	if dir == "" {
-		if d, err := flasher.DefaultBackupDir(); err == nil {
-			dir = d
-		}
-	}
+	dir := b.backupDir()
 	if dir == "" {
 		return time.Time{}, 0, ""
 	}

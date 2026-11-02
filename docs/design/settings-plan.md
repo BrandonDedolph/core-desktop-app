@@ -61,7 +61,9 @@ forever). The only outbound network calls are GitHub and the cover providers
 | `fix_organize` | *bool | true | app | C1 |
 | `fix_lowres` | *bool | true | app | C1 |
 | `window` | {w,h} | 980×700 | app | C1 |
+| `window_remember` | *bool | true; false = `window` deleted and not saved | app | C1 |
 | `last_tab` | music, fix, summary | music | app | C1 |
+| `last_tab_remember` | *bool | true; false = `last_tab` deleted and not saved | app | C1 |
 | `playlists_dir` | string | `<source>/Playlists` | app, CLI `sync --playlists` default | C3 |
 | `online_art` | *bool | true | app, CLI `fix --art` (off refuses with a message) | C3 |
 | `check_duplicates` | *bool | true | app | C3 |
@@ -101,7 +103,8 @@ control right):
 - **Playback** — Use ReplayGain (moved from the menu; same sub-line as the
   guide's sentence). Volume stays on the player.
 - **Appearance** — Theme: System · Linen · Onyx (the menu's radio rows, moved).
-  Remember the window size (on; off = 980×700 every time). Reopen the last tab.
+  Remember the window size (on; off = 980×700 every time; `window_remember`).
+  Reopen the last tab (`last_tab_remember`).
 - **Diagnostics** (C3) — Write the log to a file: a path field, *Browse…*,
   *Show folder*.
 - **Footer** — "Settings are in `<path>`" with *Show folder*; *Restore
@@ -147,6 +150,17 @@ the flasher's backup dir) without a restart. Window size saved on
 restored at `NewUI`. Tests: config round-trip with absent keys; the ticks
 persist across `NewUI`; the sheet's strings pass the words test; a
 `settings` canned state renders in both palettes.
+
+*Deviations (as built):* *Restore defaults* keeps `source` as well as
+`names` — the music folder is where the music is, not a preference, and
+clearing it would empty the Music and Fix tabs. `source` and `backup_dir`
+gained `omitempty`, so an untouched config is `{}` (Rule 1). Section
+headings are `Muted` bold, not `SelSub`: `SelSub` is the disabled-text
+token and on Onyx it is close to the plate. The two remember toggles are
+their own keys (`window_remember`, `last_tab_remember`, in the table) rather
+than "absent `window`" doing double duty. The Backup folder row puts its
+path on its own line with the buttons under it: a backup path does not fit
+beside two buttons at 660 dp.
 
 **C2 — `core config`.** The subcommand, its tests (set/get/unset/path, type
 and enum refusal, unknown keys preserved), and the CLI defaults from the file:

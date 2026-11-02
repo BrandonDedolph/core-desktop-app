@@ -34,9 +34,12 @@ func Main(o Options) error {
 
 func runWindow(o Options) error {
 	w := new(gio.Window)
+	// The remembered size (Settings → Remember the window size), or
+	// 980×700; a saved size under the minimum is ignored (WindowDp).
+	ww, wh := o.Config.WindowDp()
 	w.Option(
 		gio.Title("Core"),
-		gio.Size(unit.Dp(980), unit.Dp(700)),
+		gio.Size(unit.Dp(ww), unit.Dp(wh)),
 		gio.MinSize(unit.Dp(MinWidth), unit.Dp(MinHeight)),
 	)
 	o.Invalidate = w.Invalidate
@@ -66,6 +69,10 @@ func runWindow(o Options) error {
 	var ops op.Ops
 	title := "Core"
 	focused := false
+	// metric is the last frame's: a ConfigEvent's size is in pixels and
+	// carries no metric of its own, and the size is saved in dp so a
+	// window moved to a monitor at another scale opens the same size.
+	var metric unit.Metric
 	for {
 		switch e := w.Event().(type) {
 		case gio.DestroyEvent:
@@ -78,7 +85,10 @@ func runWindow(o Options) error {
 				u.FocusGained()
 			}
 			focused = e.Config.Focused
+			u.WindowResized(e.Config.Size, metric, e.Config.Mode == gio.Windowed)
+			w.Invalidate()
 		case gio.FrameEvent:
+			metric = e.Metric
 			gtx := gio.NewContext(&ops, e)
 			u.Layout(gtx)
 			e.Frame(gtx.Ops)

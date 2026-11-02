@@ -529,13 +529,14 @@ func (u *UI) playingBadge(gtx C, a Album, sz image.Point) {
 // StopAudio stops the player, for the window closing.
 func (u *UI) StopAudio() { u.audio.Stop() }
 
-// replayGainOn is the ··· menu's "Use ReplayGain": config.json's
-// "replaygain", absent meaning on.
-func (u *UI) replayGainOn() bool { return u.cfg.ReplayGain == nil || *u.cfg.ReplayGain }
+// replayGainOn is Settings' "Use ReplayGain": config.json's "replaygain",
+// absent meaning on.
+func (u *UI) replayGainOn() bool { return on(u.cfg.ReplayGain) }
 
-// setReplayGain switches it, on the player at once and in config.json.
+// setReplayGain switches it, on the player at once and in config.json
+// (where on, the default, is no key at all).
 func (u *UI) setReplayGain(on bool) {
-	u.cfg.ReplayGain = &on
+	u.cfg.ReplayGain = onPtr(on)
 	u.audio.SetReplayGain(on)
 	u.saveConfig()
 	if on {

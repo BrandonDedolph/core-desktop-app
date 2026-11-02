@@ -52,8 +52,8 @@ shows it within two seconds.
     *Skip* each one; untick the row to leave them all. Only a larger cover is ever used, every track
     of the album gets it, the next sync copies those tracks again, and *Undo* puts the old cover
     back. (A cover file in the folder is also used, without asking the internet, for an album that
-    has no cover at all.) The 600 is the low-resolution picker in *Settings…*, or `core config set
-    min_art_px 1000` from the command line.
+    has no cover at all.) The 600 is the *Small covers* picker in Settings… (Off, 300, 600 or
+    1000 px), or `core config set min_art_px 1000` from the command line.
   - **Duplicate albums** are two album folders with the same songs in them, so the iPod has them
     twice — say an album that is also Disc 2 of its deluxe edition. Each pair is shown side by side
     with the reason; *Keep this one* moves the other folder to a `.core-trash` folder next to your
@@ -67,8 +67,13 @@ shows it within two seconds.
   did, with *Copy* and *Clear*. When a job fails, its status line in the header says so and opens
   the log when you click it.
 - **···** holds the rest: back up the firmware, flash an image file, read the iPod again, check for
-  updates, show or copy the log, open the music folder, the theme (System, Linen, Onyx — System follows
-  Windows' dark-mode setting) and About.
+  updates, show or copy the log, open the music folder, *Settings…* and About.
+  *Settings…* is everything the app remembers, saved the moment you change it: the music folder,
+  the four *Fix all* ticks (the Fix tab's own), the small-cover line, the backup folder, *Use
+  ReplayGain*, the theme (System, Linen, Onyx — System follows Windows' dark-mode setting), and
+  whether the window keeps its size and reopens on the last tab. *Restore defaults* puts them
+  back, keeping the music folder and your iPods' names. The hold to write, the backup before
+  every flash and the read-back check are not settings.
 
 Writing firmware — Install, Update, or an image of your own — is confirmed in one dialog that says
 which iPod will be written: its name, model, serial, which disk on this PC and how much is
@@ -86,7 +91,7 @@ or the title opens the album at that track, and the album's tile in the grid car
 Space plays and pauses, and Ctrl+→ / Ctrl+← go to the next and previous track (not while you are typing in a
 field). The app plays at the iPod's loudness: a FLAC's ReplayGain tag is
 applied the way the firmware applies it (never louder than its peak allows), so albums mastered loud
-sit level with quiet ones — *Use ReplayGain* in the "···" menu turns it off. The speaker and slider beside the buttons set the app's own volume — not Windows' — and
+sit level with quiet ones — *Use ReplayGain* in Settings turns it off. The speaker and slider beside the buttons set the app's own volume — not Windows' — and
 remember it; the mouse wheel over the player or Ctrl+↑ / Ctrl+↓ nudge it, and a click on the
 speaker mutes. When the album ends the bar says so for a moment and goes away. A sync or a library fix
 does not stop the music; a track a fix has renamed is skipped. *Sync N albums* (and *Preview sync* on the Summary tab) first shows what the sync would copy —

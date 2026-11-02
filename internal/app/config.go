@@ -15,12 +15,12 @@ import (
 // settings file that will one day disagree with the hardware.
 type Config struct {
 	// Source is the music folder the Music card starts with.
-	Source string `json:"source"`
+	Source string `json:"source,omitempty"`
 	// BackupDir is where whole-partition backups go. Empty means
 	// flasher.DefaultBackupDir, which is what the CLI uses — the two
 	// must agree, or `core flash --from-backup` would look in the
 	// wrong place for a backup the app took.
-	BackupDir string `json:"backup_dir"`
+	BackupDir string `json:"backup_dir,omitempty"`
 	// Names is the friendly name of each iPod, keyed by the DISK's
 	// serial (Device.Serial, the SCSI inquiry string) — not by the
 	// volume label and not by the drive letter, because the letter
@@ -38,8 +38,99 @@ type Config struct {
 	// Volume is the app's playback level, 0–100; absent is 100. It is the
 	// app's own output, not the system's volume, and a mute is not saved.
 	Volume *int `json:"volume,omitempty"`
-	// ReplayGain is the ··· menu's "Use ReplayGain"; absent is on.
+	// ReplayGain is Settings → Playback → "Use ReplayGain"; absent is on.
 	ReplayGain *bool `json:"replaygain,omitempty"`
+
+	// The Fix tab's four ticks, which are also Settings → Library. The
+	// three that start on are *bool, absent meaning on, like ReplayGain;
+	// the multi-disc split starts OFF (it changes the shape of an album
+	// rather than repairing it), so a plain bool is already "absent is
+	// the default".
+	DiscFolders bool  `json:"disc_folders,omitempty"`
+	FixNames    *bool `json:"fix_names,omitempty"`
+	FixOrganize *bool `json:"fix_organize,omitempty"`
+	FixLowRes   *bool `json:"fix_lowres,omitempty"`
+
+	// Window is the window's last size in dp; absent is 980×700, and a
+	// size below MinWidth×MinHeight is ignored rather than trusted (a
+	// hand-edited 0×0 would otherwise open a window nobody can find).
+	// Size only: Gio reports no position, and a position saved on one
+	// monitor layout is off-screen on the next.
+	Window *WindowSize `json:"window,omitempty"`
+	// WindowRemember is "Remember the window size"; absent is on. Off
+	// deletes Window and stops saving it.
+	WindowRemember *bool `json:"window_remember,omitempty"`
+	// LastTab is the tab the window closed on: "music", "fix" or
+	// "summary"; absent is music.
+	LastTab string `json:"last_tab,omitempty"`
+	// LastTabRemember is "Reopen the last tab"; absent is on. Off deletes
+	// LastTab and stops saving it.
+	LastTabRemember *bool `json:"last_tab_remember,omitempty"`
+}
+
+// WindowSize is config.json's "window": {"w": 980, "h": 700}, in dp.
+type WindowSize struct {
+	W int `json:"w"`
+	H int `json:"h"`
+}
+
+// The window's size when nothing is remembered.
+const (
+	DefaultWindowW = 980
+	DefaultWindowH = 700
+)
+
+// on reads a *bool whose absence means true.
+func on(b *bool) bool { return b == nil || *b }
+
+// onPtr is the *bool to store for v when absent means true: nil for true,
+// so switching a setting back to its default removes the key rather than
+// writing the default out (Rule 1 of the settings plan — a key nobody
+// moved away from its default is not in the file).
+func onPtr(v bool) *bool {
+	if v {
+		return nil
+	}
+	return &v
+}
+
+// WindowDp is the size the window opens at: the remembered one when it is
+// remembered and at least the minimum, else the default.
+func (c Config) WindowDp() (w, h int) {
+	if on(c.WindowRemember) && c.Window != nil && c.Window.W >= MinWidth && c.Window.H >= MinHeight {
+		return c.Window.W, c.Window.H
+	}
+	return DefaultWindowW, DefaultWindowH
+}
+
+// tabKey is a tab as config.json's last_tab spells it.
+func tabKey(t Tab) string {
+	switch t {
+	case TabLibrary:
+		return "fix"
+	case TabDetails:
+		return "summary"
+	}
+	return "music"
+}
+
+// tabFromKey reads last_tab; anything unknown is Music.
+func tabFromKey(s string) Tab {
+	switch s {
+	case "fix":
+		return TabLibrary
+	case "summary":
+		return TabDetails
+	}
+	return TabAlbums
+}
+
+// Restored is the config "Restore defaults" leaves: every key back to its
+// default except the iPods' names (`core name` owns them, and a name is
+// not a preference) and the music folder (a fact about where the music
+// is, not a preference — restoring it would empty the Music and Fix tabs).
+func (c Config) Restored() Config {
+	return Config{Names: c.Names, Source: c.Source}
 }
 
 // NameFor is the friendly name remembered for one iPod, or "".
