@@ -138,7 +138,7 @@ func backupFileName(sizeBytes int64, t time.Time) string {
 }
 
 func defaultBackupPath(sizeBytes int64, t time.Time) (string, error) {
-	dir, err := flasher.DefaultBackupDir()
+	dir, err := configuredBackupDir()
 	if err != nil {
 		return "", err
 	}

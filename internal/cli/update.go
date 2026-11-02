@@ -80,6 +80,10 @@ What is verified is the .ipod transport checksum, which is an integrity
 check: it catches a truncated or corrupted download, not a hostile one.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Resolved here, not in the child: flashChildArgs passes it on
+			// as --backup-dir, so an elevated child running as another
+			// account backs up where this user's config said.
+			backupDir, _ = resolveBackupDir(cmd, backupDir)
 			return runUpdate(cmd, updateOptions{
 				Check:      check,
 				Tag:        strings.TrimSpace(tag),
@@ -105,7 +109,7 @@ check: it catches a truncated or corrupted download, not a hostile one.`,
 	cmd.Flags().BoolVar(&noRelaunch, "no-relaunch", false,
 		"Never start an elevated copy of this command; refuse and print the command instead")
 	cmd.Flags().StringVar(&backupDir, "backup-dir", "",
-		"Where to write the whole-partition backup (default: <user config dir>/core/backups)")
+		"Where to write the whole-partition backup (default: backup_dir in core config, else <user config dir>/core/backups)")
 	return cmd
 }
 

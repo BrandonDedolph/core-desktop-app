@@ -50,6 +50,7 @@ compares content hashes instead, which is slow and certain.`,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			stdout, stderr := cmd.OutOrStdout(), cmd.ErrOrStderr()
+			o.Src = resolveSrc(cmd, o.Src)
 			if !cmd.Flags().Changed("genre-map") {
 				o.GenreMap = defaultGenreMap()
 			}

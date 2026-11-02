@@ -81,6 +81,16 @@ commands are printed. The floor under all of it is ROM disk mode:
 Select+Menu to reset, then Select+Play at the Apple logo.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// The elevated child re-reads its own arguments, and on Windows
+			// it may run as another account with another config.json — so a
+			// backup folder that came from this user's file is handed to it
+			// as a flag rather than looked up again over there.
+			childArgs := os.Args[1:]
+			dir, fromFile := resolveBackupDir(cmd, backupDir)
+			if fromFile {
+				childArgs = append(append([]string{}, childArgs...), "--backup-dir", dir)
+			}
+			backupDir = dir
 			o := flasher.Options{
 				FromBackup: fromBackup,
 				Device:     deviceFlag(cmd),
@@ -103,7 +113,7 @@ Select+Menu to reset, then Select+Play at the Apple logo.`,
 			out := cmd.OutOrStdout()
 			res, err := flasher.Flash(cmd.Context(), o, flasher.Deps{
 				GOOS:      runtime.GOOS,
-				ChildArgs: os.Args[1:],
+				ChildArgs: childArgs,
 				Out:       out,
 				Confirm: func(prompt string) (string, error) {
 					fmt.Fprint(out, prompt)
@@ -130,7 +140,7 @@ Select+Menu to reset, then Select+Play at the Apple logo.`,
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false,
 		"Skip the typed confirmation (the backup and the read-back still happen)")
 	cmd.Flags().StringVar(&backupDir, "backup-dir", "",
-		"Where to write the whole-partition backup (default: <user config dir>/core/backups)")
+		"Where to write the whole-partition backup (default: backup_dir in core config, else <user config dir>/core/backups)")
 	cmd.Flags().BoolVar(&untested, "untested-hardware", false,
 		"Write to an iPod outside the tested capacity window ("+disk.TestedModel+" only)")
 	cmd.Flags().BoolVar(&noRelaunch, "no-relaunch", false,

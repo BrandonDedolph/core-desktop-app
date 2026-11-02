@@ -2,10 +2,8 @@ package cli
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"sort"
 
@@ -83,12 +81,11 @@ nothing to put back.`,
 			if undo != "" {
 				return runFixUndo(cmd, undo, journalDir)
 			}
-			if src == "" {
-				src = os.Getenv("CORELIB_SRC")
+			if src = resolveSrc(cmd, src); src == "" {
+				return errNoSrc
 			}
-			if src == "" {
-				return errors.New("--src is required (or set CORELIB_SRC)")
-			}
+			discFolders = resolveBoolFlag(cmd, "disc-folders", "disc_folders", discFolders)
+			minArt = resolveMinArt(cmd, minArt)
 			all := !names && !organize && !art
 			return runFix(cmd, fixOptions{
 				Src:      src,

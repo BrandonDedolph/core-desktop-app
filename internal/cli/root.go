@@ -59,6 +59,7 @@ func Root() *cobra.Command {
 		newSyncCmd(),
 		newEjectCmd(),
 		newNameCmd(),
+		newConfigCmd(),
 		newInstallCmd(),
 		newFlashCmd(),
 		newUpdateCmd(),
@@ -124,6 +125,7 @@ Available today:
   core sync           Put a music tree on the iPod: files, art, playlists, index
   core eject          Flush and eject the volume so the cable can be pulled
   core name           Read or set the iPod's name (its FAT volume label)
+  core config         Read or change the settings core and core-app share
   core install        Put Core on an iPod still running Apple's firmware
   core flash          Write a firmware image, or restore a partition backup
   core update         Fetch the latest firmware release and flash it

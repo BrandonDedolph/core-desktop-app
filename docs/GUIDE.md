@@ -52,7 +52,8 @@ shows it within two seconds.
     *Skip* each one; untick the row to leave them all. Only a larger cover is ever used, every track
     of the album gets it, the next sync copies those tracks again, and *Undo* puts the old cover
     back. (A cover file in the folder is also used, without asking the internet, for an album that
-    has no cover at all.) The 600 can be changed with `"min_art_px"` in config.json.
+    has no cover at all.) The 600 is the low-resolution picker in *Settings…*, or `core config set
+    min_art_px 1000` from the command line.
   - **Duplicate albums** are two album folders with the same songs in them, so the iPod has them
     twice — say an album that is also Disc 2 of its deluxe edition. Each pair is shown side by side
     with the reason; *Keep this one* moves the other folder to a `.core-trash` folder next to your
@@ -138,6 +139,18 @@ core sync --src … --dst D:\ --prune --yes   # also remove what is on the devic
 ```
 
 Nothing is deleted without `--prune --yes`.
+
+**Settings.** The command line reads the same settings file as the window:
+
+```
+core config                          # every setting, and which are still the default
+core config set min_art_px 1000      # covers under 1000 px count as low-resolution
+core config set source "C:\Users\you\Music"
+core config unset source             # back to the default
+```
+
+A flag always wins, then `$CORELIB_SRC`, then the file — so once `source` is set, `core sync --dst D:\`
+needs no `--src`, and the command says where the folder came from before it starts.
 
 **The clock.** `sync`, `install` and `eject` all write your computer's current time (and its time
 zone) into `CORECFG.DAT`, and the iPod picks it up at its **next boot**. It cannot be told the time

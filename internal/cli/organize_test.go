@@ -174,18 +174,7 @@ func TestOrganizeMultiDiscIsOffByDefault(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	for _, tc := range []struct{ name, title, track, disc string }{
-		{"01 - Band - Alpha.flac", "Alpha", "1", "1"},
-		{"02 - Band - Gamma.flac", "Gamma", "1", "2"},
-	} {
-		raw := flac.BuildFile(
-			flac.StreamInfo{SampleRate: 44100, Channels: 2, BitsPerSample: 16, TotalSamples: 4410},
-			map[string]string{"album": "Double", "artist": "Band", "title": tc.title,
-				"tracknumber": tc.track, "discnumber": tc.disc}, nil)
-		if err := os.WriteFile(filepath.Join(dir, tc.name), raw, 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
+	writeMultiDisc(t, dir)
 	out, _, err := runCore(t, "organize", "--src", src)
 	if err != nil {
 		t.Fatalf("organize: %v", err)
@@ -204,6 +193,24 @@ func TestOrganizeMultiDiscIsOffByDefault(t *testing.T) {
 	for _, want := range []string{"Disc 1/01 - Band - Alpha.flac", "Disc 2/01 - Band - Gamma.flac", "(disc)"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("--disc-folders does not say %q:\n%s", want, out)
+		}
+	}
+}
+
+// writeMultiDisc puts a flat two-disc album in dir: two tracks whose tags
+// say disc 1 and disc 2, both track 1.
+func writeMultiDisc(t *testing.T, dir string) {
+	t.Helper()
+	for _, tc := range []struct{ name, title, track, disc string }{
+		{"01 - Band - Alpha.flac", "Alpha", "1", "1"},
+		{"02 - Band - Gamma.flac", "Gamma", "1", "2"},
+	} {
+		raw := flac.BuildFile(
+			flac.StreamInfo{SampleRate: 44100, Channels: 2, BitsPerSample: 16, TotalSamples: 4410},
+			map[string]string{"album": "Double", "artist": "Band", "title": tc.title,
+				"tracknumber": tc.track, "discnumber": tc.disc}, nil)
+		if err := os.WriteFile(filepath.Join(dir, tc.name), raw, 0o644); err != nil {
+			t.Fatal(err)
 		}
 	}
 }
