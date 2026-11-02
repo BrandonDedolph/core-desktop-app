@@ -201,17 +201,22 @@ func TestTheVolumeCurve(t *testing.T) {
 	}
 }
 
-// "Use ReplayGain" in the ··· menu: on by default, a click turns it off on
-// the player and in config.json, and the album's facts and the log say the
-// track's gain while it plays.
+// "Use ReplayGain" in Settings: on by default (the sheet's tick says so),
+// turning it off reaches the player and config.json, and the album's facts
+// and the log say the track's gain while it plays.
 func TestTheReplayGainToggle(t *testing.T) {
 	u, fa, path, _ := volUI(t, nil)
 	if !u.replayGainOn() || len(fa.rg) == 0 || !fa.rg[0] {
 		t.Fatalf("ReplayGain should start on: %v", fa.rg)
 	}
-	u.st.MenuOpen = true
+	u.openSettings()
 	u.Layout(newTestContext(900, 600))
-	u.menuClicks[menuReplayGain].Click()
+	if !u.settings.rgTick.Value {
+		t.Fatal("the sheet's tick is off while ReplayGain is on")
+	}
+	// The tick's handler (a widget.Bool cannot be clicked without an input
+	// router; settingsEvents calls exactly this with the tick's value).
+	u.setReplayGain(false)
 	u.Layout(newTestContext(900, 600))
 	if u.replayGainOn() || fa.rg[len(fa.rg)-1] {
 		t.Fatalf("after the click: on %v, player %v", u.replayGainOn(), fa.rg)

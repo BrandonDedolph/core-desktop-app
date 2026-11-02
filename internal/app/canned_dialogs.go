@@ -11,7 +11,7 @@ import (
 // DialogKinds are the dialogs `core-app --screenshot --dialog KIND` can
 // put on screen, for review. They are drawn and nothing else: a canned
 // dialog has no job behind it, so nothing can be confirmed through one.
-var DialogKinds = []string{"write", "holding", "remove", "about", "album", "preview"}
+var DialogKinds = []string{"write", "holding", "remove", "about", "album", "preview", "settings"}
 
 // cannedDialog builds one of DialogKinds against the state's device.
 func cannedDialog(u *UI, kind string) error {
@@ -58,6 +58,9 @@ func cannedDialog(u *UI, kind string) error {
 				"(with --source: no album with %d+ tracks and a square embedded cover)", heroTracks)
 		}
 		u.openSheet(u.st.Albums[np.AlbumIndex])
+		return nil
+	case "settings":
+		u.openSettings()
 		return nil
 	case "preview":
 		u.dlg = previewDialog(u.st.Albums, u.st.Source, u.st.FirmwareTooOld())

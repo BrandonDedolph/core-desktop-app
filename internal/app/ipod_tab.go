@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"image"
-	"os"
 	"regexp"
 	"strings"
 
@@ -511,21 +510,8 @@ func (u *UI) ipodStrings() []string {
 }
 
 // openBackupFolder shows the backup folder in the file manager, creating it
-// first: Explorer pointed at a folder that does not exist opens Documents,
-// which is a lie about where the backups go.
-func (u *UI) openBackupFolder() {
-	dir := u.st.Backups.Dir
-	if dir == "" {
-		return
-	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		u.st.Logf("could not create %s: %v", dir, err)
-		return
-	}
-	if err := openFolder(dir); err != nil {
-		u.st.Logf("could not open %s: %v", dir, err)
-	}
-}
+// first (openDir).
+func (u *UI) openBackupFolder() { u.openDir(u.st.Backups.Dir) }
 
 // sourceRow is the music folder field and its Browse button, on the Library
 // tab's header — the one place the folder is set. The footer's folder text

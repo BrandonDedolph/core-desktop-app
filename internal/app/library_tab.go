@@ -619,25 +619,7 @@ func (u *UI) libraryEvents(gtx C, busy bool) {
 			u.st.Tab = TabLibrary
 		}
 	}
-	if u.lowResTick.Update(gtx) {
-		u.st.FixLowRes = u.lowResTick.Value
-	}
-	if u.namesTick.Update(gtx) {
-		u.st.FixNames = u.namesTick.Value
-	}
-	if u.organizeTick.Update(gtx) {
-		u.st.Organize = u.organizeTick.Value
-	}
-	if u.discTick.Update(gtx) {
-		// The split has to be IN the plan before it can be applied, and
-		// only an Inspect with the option on puts it there (librarian's
-		// Options.DiscFolders). So ticking the box rescans; the row says
-		// so, and the scan is a read.
-		u.st.DiscFolders = u.discTick.Value
-		if !busy && strings.TrimSpace(u.st.Source) != "" {
-			u.later(func() { u.startInspect(u.st.Source) })
-		}
-	}
+	u.tickEvents(gtx, busy)
 	if busy {
 		return
 	}

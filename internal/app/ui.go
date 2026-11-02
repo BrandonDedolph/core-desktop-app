@@ -134,6 +134,11 @@ type dialogRequest struct {
 	// reply carries the typed answer, or "" for a cancel. Buffered, so
 	// a job that has already given up cannot wedge the UI goroutine.
 	reply chan string
+	// then, when set, is called with the answer on the UI goroutine as
+	// the dialog closes: the shape a question the window asks itself
+	// takes (Settings' Restore defaults), where there is no job goroutine
+	// blocked on reply to act on it.
+	then func(answer string)
 }
 
 // solo reports whether the dialog has one button and nothing to cancel.
@@ -311,11 +316,10 @@ type UI struct {
 	newBackups *Backups
 	newNotice  string
 	// newApp is the launch check's newer app release: tag, page URL.
-	newApp      *[2]string
-	menuBtn     widget.Clickable
-	menuScrim   widget.Clickable
-	menuClicks  [menuCount]widget.Clickable
-	themeClicks [3]widget.Clickable
+	newApp     *[2]string
+	menuBtn    widget.Clickable
+	menuScrim  widget.Clickable
+	menuClicks [menuCount]widget.Clickable
 	// The Fix tab's low-resolution row: its tick, and one Use/Skip
 	// pair per album; the duplicate chooser's Keep pair per group.
 	lowResTick       widget.Bool
@@ -334,6 +338,17 @@ type UI struct {
 	autoChecked bool
 
 	pickerOK bool
+
+	// settings is the Settings sheet (settings.go), nil when closed.
+	// newBackupDir is its Backup folder picker's answer, under mu like
+	// every picker's. rescanQueued keeps a burst of setting changes to one
+	// scan. win is the window size's memory; savedTab is the tab last
+	// seen, so a change is saved once (rememberTab).
+	settings     *settingsSheet
+	newBackupDir string
+	rescanQueued bool
+	win          winState
+	savedTab     Tab
 }
 
 // NewUI builds the window's state.
@@ -409,14 +424,25 @@ func NewUI(o Options) *UI {
 		return u.be.FetchThumb(context.Background(), url)
 	}, u.invalidate)
 
-	// The two tick boxes the report's categories carry start ON: the
-	// report only lists things that are wrong, and a Fix all that did
-	// nothing because two boxes started empty is worse than one that
-	// does what the list says. The multi-disc split starts OFF — it
-	// changes the shape of an album rather than repairing it.
-	u.st.FixNames, u.st.Organize = true, true
-	u.namesTick.Value, u.organizeTick.Value = true, true
-	u.st.FixLowRes, u.lowResTick.Value = true, true
+	// The tick boxes the report's categories carry start ON: the report
+	// only lists things that are wrong, and a Fix all that did nothing
+	// because two boxes started empty is worse than one that does what
+	// the list says. The multi-disc split starts OFF — it changes the
+	// shape of an album rather than repairing it. Each is remembered once
+	// it is changed (config.json's fix_* and disc_folders), here or in
+	// Settings.
+	c := o.Config
+	u.st.FixNames, u.st.Organize, u.st.FixLowRes = on(c.FixNames), on(c.FixOrganize), on(c.FixLowRes)
+	u.st.DiscFolders = c.DiscFolders
+	u.namesTick.Value, u.organizeTick.Value = u.st.FixNames, u.st.Organize
+	u.lowResTick.Value, u.discTick.Value = u.st.FixLowRes, u.st.DiscFolders
+	// "Reopen the last tab". A canned state (SetState) and --tab come
+	// after this and beat it.
+	if on(c.LastTabRemember) {
+		u.st.Tab = tabFromKey(c.LastTab)
+	}
+	u.savedTab = u.st.Tab
+	u.win.size = image.Pt(c.WindowDp())
 	u.lowCovers = newThumbCache(embeddedCover, u.invalidate)
 
 	u.sourceEd.SingleLine, u.sourceEd.Submit = true, true
@@ -499,6 +525,8 @@ func (u *UI) drain() {
 	u.newApp = nil
 	path, pathFor := u.newPath, u.pathFor
 	u.newPath, u.pathFor = "", JobNone
+	backupDir := u.newBackupDir
+	u.newBackupDir = ""
 	renamed := u.newName
 	u.newName = nil
 	detected := u.newDetect
@@ -585,6 +613,9 @@ func (u *UI) drain() {
 		// through the same gate as Install Core.
 		u.st.InstallFile = path
 		u.st.Logf("install image: %s", path)
+	}
+	if backupDir != "" {
+		u.setBackupDir(backupDir)
 	}
 	if report != nil {
 		u.st.Report, u.st.Scanned = report, time.Now()
@@ -746,6 +777,7 @@ func (u *UI) Layout(gtx C) D {
 	u.syncNowPlaying(gtx)
 	u.playKeys(gtx)
 	u.saveVolumeLater(gtx)
+	u.saveWindowLater(gtx)
 	if u.st.NowPlaying != nil && u.dlg == nil {
 		u.nowPlayingEvents(gtx)
 	}
@@ -758,19 +790,23 @@ func (u *UI) Layout(gtx C) D {
 	case u.sheet != nil:
 		u.st.MenuOpen = false
 		u.sheetEvents(gtx)
+	case u.settings != nil:
+		u.st.MenuOpen = false
+		u.settingsEvents(gtx)
 	default:
 		u.events(gtx)
 	}
+	u.rememberTab()
 
-	if !u.st.MenuOpen {
-		// The menu's "System — Onyx now" is read once per opening.
+	if u.settings == nil {
+		// Settings' "System — Onyx now" is read once per opening.
 		u.systemNow = ""
 	}
 	paint.Fill(gtx.Ops, u.pal.Surface)
 	return layout.Stack{}.Layout(gtx,
 		layout.Stacked(func(gtx C) D {
 			g := gtx
-			if u.dlg != nil || u.sheet != nil {
+			if u.dlg != nil || u.sheet != nil || u.settings != nil {
 				// A modal that does not actually block the buttons
 				// behind it is a modal that lets somebody start a sync
 				// while a flash confirmation is on screen.
@@ -782,6 +818,9 @@ func (u *UI) Layout(gtx C) D {
 		layout.Expanded(func(gtx C) D {
 			if u.sheet != nil {
 				u.sheetLayer(gtx)
+			}
+			if u.settings != nil {
+				u.settingsLayer(gtx)
 			}
 			if u.dlg != nil {
 				return u.dialog(gtx)
@@ -898,8 +937,23 @@ func (u *UI) events(gtx C) {
 	}
 	u.menuEvents(gtx)
 
-	// The source field is saved as it is edited, not on some Save
-	// button nobody would press.
+	u.sourceEvents(gtx)
+	for {
+		ev, ok := u.flashEd.Update(gtx)
+		if !ok {
+			break
+		}
+		switch ev.(type) {
+		case widget.ChangeEvent, widget.SubmitEvent:
+			u.st.FlashFile = strings.TrimSpace(u.flashEd.Text())
+		}
+	}
+}
+
+// sourceEvents drains the music folder field, from the Fix tab or from
+// Settings (one field, two doors). It is saved as it is edited, not on
+// some Save button nobody would press.
+func (u *UI) sourceEvents(gtx C) {
 	for {
 		ev, ok := u.sourceEd.Update(gtx)
 		if !ok {
@@ -916,16 +970,6 @@ func (u *UI) events(gtx C) {
 			// the scan follows it, rather than following every
 			// keystroke on the way to a path.
 			u.setSource(strings.TrimSpace(u.sourceEd.Text()))
-		}
-	}
-	for {
-		ev, ok := u.flashEd.Update(gtx)
-		if !ok {
-			break
-		}
-		switch ev.(type) {
-		case widget.ChangeEvent, widget.SubmitEvent:
-			u.st.FlashFile = strings.TrimSpace(u.flashEd.Text())
 		}
 	}
 }
@@ -1090,9 +1134,13 @@ func (u *UI) reply(text string) {
 	case u.dlg.reply <- text:
 	default:
 	}
+	then := u.dlg.then
 	u.dlg = nil
 	u.confirmEd.SetText("")
 	u.holdStart, u.holdFrac, u.planOpen = time.Time{}, 0, false
+	if then != nil {
+		then(text)
+	}
 }
 
 // ask puts a modal question on screen and blocks the calling (job)

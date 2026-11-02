@@ -217,23 +217,25 @@ func TestConfigThemeAliases(t *testing.T) {
 	}
 }
 
-// The menu reads the system theme once per opening, not every frame.
-func TestSystemThemeReadOncePerMenu(t *testing.T) {
+// Settings reads the system theme once per opening, not every frame (the
+// Theme row moved there from the menu).
+func TestSystemThemeReadOncePerSettings(t *testing.T) {
 	u := NewUI(Options{})
-	u.SetState(MenuState())
+	u.SetState(DemoState())
+	u.openSettings()
 	u.Layout(newTestContext(900, 600))
 	if u.systemNow == "" {
-		t.Fatal("the open menu did not resolve System")
+		t.Fatal("the open sheet did not resolve System")
 	}
 	u.systemNow = "sentinel"
 	u.Layout(newTestContext(900, 600))
 	if u.systemNow != "sentinel" {
-		t.Error("the menu resolved System again on the next frame")
+		t.Error("the sheet resolved System again on the next frame")
 	}
-	u.st.MenuOpen = false
+	u.closeSettings()
 	u.Layout(newTestContext(900, 600))
 	if u.systemNow != "" {
-		t.Error("closing the menu kept the stale answer")
+		t.Error("closing the sheet kept the stale answer")
 	}
 }
 
