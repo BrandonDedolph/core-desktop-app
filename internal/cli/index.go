@@ -54,14 +54,13 @@ shows in the gutter and sorts the tracklist by. --show-drift lists every
 track where the two disagree.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if src == "" {
-				src = os.Getenv("CORELIB_SRC")
-			}
+			src = resolveSrc(cmd, src)
 			if out == "" {
 				out = os.Getenv("CORELIB_OUT")
 			}
 			if src == "" || (out == "" && !dryRun) {
-				return errors.New("--src and --out are required (or set CORELIB_SRC / CORELIB_OUT)")
+				return errors.New("--src and --out are required (or set CORELIB_SRC / CORELIB_OUT; " +
+					"`core config set source <music folder>` also gives --src)")
 			}
 
 			stdout, stderr := cmd.OutOrStdout(), cmd.ErrOrStderr()

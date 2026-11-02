@@ -86,6 +86,9 @@ old firmware back are printed. The floor under all of it is ROM disk
 mode: Select+Menu to reset, then Select+Play at the Apple logo.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Resolved here, not in the child: installChildArgs passes it
+			// on as --backup-dir (see update.go).
+			backupDir, _ = resolveBackupDir(cmd, backupDir)
 			o := installOptions{
 				Yes:        yes,
 				DryRun:     dryRun,
@@ -110,7 +113,7 @@ mode: Select+Menu to reset, then Select+Play at the Apple logo.`,
 	cmd.Flags().BoolVar(&force, "force", false,
 		"Install even though the device is already running Core (normally: use \"core update\")")
 	cmd.Flags().StringVar(&backupDir, "backup-dir", "",
-		"Where to write the whole-partition backup (default: <user config dir>/core/backups)")
+		"Where to write the whole-partition backup (default: backup_dir in core config, else <user config dir>/core/backups)")
 	cmd.Flags().BoolVar(&untested, "untested-hardware", false,
 		"Write to an iPod outside the tested capacity window ("+disk.TestedModel+" only)")
 	cmd.Flags().BoolVar(&noRelaunch, "no-relaunch", false,

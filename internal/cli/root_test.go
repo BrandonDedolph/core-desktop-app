@@ -31,7 +31,7 @@ func TestRootRegistersOnlyRealCommands(t *testing.T) {
 		"firmware": true, "index": true, "art": true,
 		"organize": true, "fix": true, "sync": true, "eject": true, "flash": true,
 		"update": true, "doctor": true,
-		"name": true, "install": true,
+		"name": true, "install": true, "config": true,
 	}
 	for _, c := range Root().Commands() {
 		if c.Name() == "help" || c.Name() == "completion" {

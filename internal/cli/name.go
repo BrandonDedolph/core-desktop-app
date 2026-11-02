@@ -296,6 +296,13 @@ func storeFriendlyName(path, serial, friendly string) error {
 		return err
 	}
 	raw["names"] = enc
+	return writeConfigObject(path, raw)
+}
+
+// writeConfigObject writes the whole object back. Every key other than
+// the one the caller changed is a json.RawMessage, carried across as
+// read (MarshalIndent re-indents it, which is the app's own layout).
+func writeConfigObject(path string, raw map[string]json.RawMessage) error {
 	body, err := json.MarshalIndent(raw, "", "  ")
 	if err != nil {
 		return err

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -65,9 +64,8 @@ Without --apply nothing is written. --apply writes an undo journal to
 			if src == "" {
 				src = root
 			}
-			if src == "" {
-				src = os.Getenv("CORELIB_SRC")
-			}
+			src = resolveSrc(cmd, src)
+			discFolders = resolveBoolFlag(cmd, "disc-folders", "disc_folders", discFolders)
 			o := organizer.Options{Root: src, JournalDir: journalDir, DiscFolders: discFolders}
 
 			switch {
@@ -80,7 +78,7 @@ Without --apply nothing is written. --apply writes an undo journal to
 				return errors.New("--apply and --dry-run are alternatives; pass one")
 			}
 			if src == "" {
-				return errors.New("--src is required (or set CORELIB_SRC)")
+				return errNoSrc
 			}
 			return runOrganize(cmd, o, apply, asJSON)
 		},
