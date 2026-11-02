@@ -140,6 +140,15 @@ func main() {
 
 	be := app.NewRealBackend(cfg.BackupDir)
 	be.MinArtPx = cfg.MinArtPx
+	be.NoOnlineArt = !cfg.OnlineArtOn()
+	be.SkipDuplicates = !cfg.CheckDuplicatesOn()
+	be.Prereleases = cfg.Prereleases
+	be.KeepBackups = cfg.KeepBackups
+	// Settings → Log file, read here and only here: the file is opened at
+	// start (the sheet says so), and --log beats it.
+	if *logFile == "" && cfg.LogFile != "" {
+		*logFile = cfg.LogFile
+	}
 	o := app.Options{
 		Backend:    be,
 		Config:     cfg,

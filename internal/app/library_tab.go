@@ -223,11 +223,33 @@ func (u *UI) costLine() string {
 
 // catSub is a row's sub line. The low-resolution row names the line the
 // report was measured against, which config.json can move.
+//
+// With Look for covers on the internet off, the two cover rows say where
+// covers come from instead: the album's folder, and nowhere else.
 func (u *UI) catSub(c Category) string {
+	offline := !u.cfg.OnlineArtOn()
 	if c == CatLowRes && u.st.Report != nil && u.st.Report.MinArtPx > 0 {
+		if offline {
+			return lowResSubOffline(u.st.Report.MinArtPx)
+		}
 		return lowResSub(u.st.Report.MinArtPx)
 	}
+	if offline {
+		switch c {
+		case CatLowRes:
+			return lowResSubOffline(librarian.DefaultMinArtPx)
+		case CatArt:
+			return artSubOffline
+		}
+	}
 	return c.Sub()
+}
+
+// The cover rows' sub-lines with the internet off.
+const artSubOffline = "from a cover file in the album folder only — looking on the internet is off"
+
+func lowResSubOffline(px int) string {
+	return fmt.Sprintf("below %d px — only a larger cover file in the album folder is used", px)
 }
 
 // proseSize is a size inside a sentence: ONE number, in the unit a person

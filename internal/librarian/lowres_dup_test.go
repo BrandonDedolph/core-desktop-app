@@ -627,3 +627,62 @@ func TestFixAllAfterAClickKeepsTheChain(t *testing.T) {
 		t.Fatalf("journal %s: fix=%v %+v %v", res.Journal, isFix, j, err)
 	}
 }
+
+// Check for duplicate albums, off: the same fixture, no groups, and the
+// report says the check did not run — so "none" is never claimed.
+func TestSkipDuplicatesLeavesTheCheckOut(t *testing.T) {
+	src := swagFixture(t)
+	o := opts(t)
+	o.SkipDuplicates = true
+	rep, err := Inspect(context.Background(), src, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Duplicates) != 0 || rep.DuplicatesChecked {
+		t.Errorf("Duplicates = %d, checked = %v; want none and not checked", len(rep.Duplicates), rep.DuplicatesChecked)
+	}
+}
+
+// Look for covers on the internet, off, is a nil client: an album with a
+// cover file in its folder is still offered it, and one without is
+// passed over with a line — never an error, and there is nothing that
+// could make a request.
+func TestNilArtClientIsFolderCoversOnly(t *testing.T) {
+	src := t.TempDir()
+	withFile := filepath.Join(src, "Canon - Artist A")
+	writeTrack(t, withFile, "01 - Artist A - One.flac", map[string]string{
+		"album": "Canon", "artist": "Artist A", "title": "One", "tracknumber": "1"}, nil)
+	if err := os.WriteFile(filepath.Join(withFile, "cover.png"), pngSquare(t, 700), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeTrack(t, filepath.Join(src, "Bare - Artist B"), "01 - Artist B - Two.flac", map[string]string{
+		"album": "Bare", "artist": "Artist B", "title": "Two", "tracknumber": "1"}, nil)
+
+	var lines []string
+	o := opts(t)
+	o.Progress = func(e Event) {
+		if e.Kind == EventLog {
+			lines = append(lines, e.Text)
+		}
+	}
+	rep, err := Inspect(context.Background(), src, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.MissingArt) != 2 {
+		t.Fatalf("MissingArt = %+v", rep.MissingArt)
+	}
+	cands, err := Candidates(context.Background(), rep, nil, o)
+	if err != nil {
+		t.Fatalf("Candidates with no client: %v", err)
+	}
+	if c := cands["Canon - Artist A"]; len(c) != 1 || c[0].Provider != ProviderFile {
+		t.Errorf("the folder cover was not offered: %+v", c)
+	}
+	if _, ok := cands["Bare - Artist B"]; ok {
+		t.Error("an album with no folder cover got a candidate from nowhere")
+	}
+	if !strings.Contains(strings.Join(lines, "\n"), "1 album(s) not looked up") {
+		t.Errorf("the skipped lookup was not said: %q", lines)
+	}
+}

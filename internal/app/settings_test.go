@@ -116,10 +116,20 @@ type liveFake struct {
 	fakeBackend
 	minArt    []int
 	backupDir []string
+	online    []bool
+	dups      []bool
+	pre       []bool
+	keep      []int
 }
 
 func (f *liveFake) SetMinArtPx(px int)      { f.minArt = append(f.minArt, px) }
 func (f *liveFake) SetBackupDir(dir string) { f.backupDir = append(f.backupDir, dir) }
+func (f *liveFake) SetOnlineArt(v bool)     { f.online = append(f.online, v) }
+func (f *liveFake) SetCheckDuplicates(v bool) {
+	f.dups = append(f.dups, v)
+}
+func (f *liveFake) SetPrereleases(v bool) { f.pre = append(f.pre, v) }
+func (f *liveFake) SetKeepBackups(n int)  { f.keep = append(f.keep, n) }
 
 // The small-covers picker's four stops are the four min_art_px values —
 // 600, the default, is no key — the backend hears each at once, and a

@@ -90,3 +90,37 @@ func TestPickerCommandLinuxWithNeither(t *testing.T) {
 		t.Errorf("the error does not say what to do instead: %v", err)
 	}
 }
+
+// The genre map's dialog is the file dialog with its own title and, on
+// Windows, a JSON filter — not one that says "Choose a firmware image"
+// and hides every .json file.
+func TestPickerCommandFileGenreMap(t *testing.T) {
+	for _, tc := range []struct {
+		goos string
+		have []string
+		want []string
+	}{
+		{"windows", nil, []string{"OpenFileDialog", "Genre map (*.json)|*.json"}},
+		{"darwin", nil, []string{"Choose a genre map"}},
+		{"linux", []string{"zenity"}, []string{"--title=Choose a genre map"}},
+	} {
+		_, args, err := pickerCommandFile(tc.goos, genreMapFile, look(tc.have...))
+		if err != nil {
+			t.Fatalf("%s: %v", tc.goos, err)
+		}
+		joined := strings.Join(args, " ")
+		for _, w := range tc.want {
+			if !strings.Contains(joined, w) {
+				t.Errorf("%s: %q lacks %q", tc.goos, joined, w)
+			}
+		}
+		if strings.Contains(joined, "firmware") || strings.Contains(joined, "*.ipod") {
+			t.Errorf("%s: the genre map dialog still asks for firmware: %q", tc.goos, joined)
+		}
+	}
+	// And the firmware dialog is what it always was.
+	_, args, _ := pickerCommandFile("windows", firmwareFile, look())
+	if !strings.Contains(strings.Join(args, " "), firmwareFile.winFilter) {
+		t.Errorf("the firmware filter changed: %q", args)
+	}
+}

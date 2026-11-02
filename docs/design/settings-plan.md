@@ -193,6 +193,21 @@ not after a failed one; no launch check under `never`; a pre-release is chosen
 only with the flag; retention keeps `apple-*`, keeps the newest, deletes by
 timestamp not by name order.
 
+*Deviations (as built):* `flash` and `install` gained a hidden
+`--keep-backups N`: the backup and its retention happen in the elevated
+child, which on Windows may run as another account with another
+config.json, so the parent hands the count over the way it hands over
+`--backup-dir` (the app's `buildFlashDeps`/`buildInstallDeps` do the
+same). A retention pass also never removes the file a `--from-backup`
+restore is reading. The librarian option is `SkipDuplicates` (its zero
+value keeps `Options{}` usable for Inspect). The CLI also takes
+`playlists_dir` and `genre_map` as the `sync --playlists` and
+`sync`/`index --genre-map` defaults, as the key table says; with
+`online_art` off, `core fix --yes` (no `--art`) uses folder covers only
+rather than refusing. The Covers and Duplicates ticks are rows of their
+own, labelled Covers and Duplicates; Eject sits in the Copies row under
+Verify.
+
 **C4 — the iPod's own settings (deferred, own design).** The app already
 rewrites one record of `CORECFG.DAT` byte-for-byte for the clock stamp, and the
 firmware is not running while the device is in disk mode, so the Summary tab

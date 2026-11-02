@@ -125,6 +125,43 @@ func PickFolder(ctx context.Context) (string, error) { return pick(ctx, true) }
 // PickFile opens the OS file dialog.
 func PickFile(ctx context.Context) (string, error) { return pick(ctx, false) }
 
+// fileKind is what a file dialog asks for: its title, and the Windows
+// filter line. Both are this package's constants, spliced into the
+// PowerShell and AppleScript text, never anything a person typed.
+type fileKind struct{ title, winFilter string }
+
+var (
+	// firmwareFile is the dialog PickFile has always opened; its words
+	// are the ones winFilePS and the other platforms' commands carry.
+	firmwareFile = fileKind{"Choose a firmware image",
+		"Firmware image (*.ipod;*.bin)|*.ipod;*.bin|All files (*.*)|*.*"}
+	// genreMapFile is Settings → Genre map's Browse….
+	genreMapFile = fileKind{"Choose a genre map", "Genre map (*.json)|*.json|All files (*.*)|*.*"}
+)
+
+// pickerCommandFile is the file dialog asking for k: the firmware
+// command with its title and filter swapped.
+func pickerCommandFile(goos string, k fileKind, look lookPath) (string, []string, error) {
+	name, args, err := pickerCommandMusic(goos, false, look)
+	if err != nil || k == firmwareFile {
+		return name, args, err
+	}
+	for i := range args {
+		args[i] = strings.ReplaceAll(args[i], firmwareFile.winFilter, k.winFilter)
+		args[i] = strings.ReplaceAll(args[i], firmwareFile.title, k.title)
+	}
+	return name, args, nil
+}
+
+// pickFileKind opens the file dialog asking for k.
+func pickFileKind(ctx context.Context, k fileKind) (string, error) {
+	name, args, err := pickerCommandFile(runtime.GOOS, k, exec.LookPath)
+	if err != nil {
+		return "", err
+	}
+	return runPicker(ctx, name, args)
+}
+
 // pickFolderPrompt is PickFolder with its own title (one of this
 // package's constants).
 func pickFolderPrompt(ctx context.Context, prompt string) (string, error) {
@@ -138,6 +175,11 @@ func pickPrompt(ctx context.Context, dir bool, prompt string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return runPicker(ctx, name, args)
+}
+
+// runPicker runs one dialog command and reads the chosen path off stdout.
+func runPicker(ctx context.Context, name string, args []string) (string, error) {
 	out, err := exec.CommandContext(ctx, name, args...).Output()
 	if err != nil {
 		// Every one of these dialogs exits non-zero when the user

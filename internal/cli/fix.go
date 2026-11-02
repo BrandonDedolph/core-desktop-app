@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -86,6 +87,17 @@ nothing to put back.`,
 			}
 			discFolders = resolveBoolFlag(cmd, "disc-folders", "disc_folders", discFolders)
 			minArt = resolveMinArt(cmd, minArt)
+			offline := false
+			if onlineArt := true; configDefault("online_art", &onlineArt) && !onlineArt {
+				// --art is a request to search, and the file says not to:
+				// refusing is the answer that does not surprise anybody.
+				if art {
+					return errors.New("--art looks for covers on the internet, and online_art is off in core config; " +
+						"run `core config unset online_art` to allow it, or fix names and folders with --names --organize")
+				}
+				offline = true
+				noteFromConfig(cmd, "online_art", "false — only cover files already in the album folders are used")
+			}
 			all := !names && !organize && !art
 			return runFix(cmd, fixOptions{
 				Src:      src,
@@ -102,6 +114,7 @@ nothing to put back.`,
 				MinScore:    minScore,
 				MinArt:      minArt,
 				JournalDir:  journalDir,
+				Offline:     offline,
 			})
 		},
 	}
@@ -127,6 +140,9 @@ nothing to put back.`,
 
 // fixOptions is the command's flags, resolved.
 type fixOptions struct {
+	// Offline is online_art off: no art client, so only a cover file
+	// already in an album's folder is offered.
+	Offline               bool
 	Src                   string
 	Names, Organize, Art  bool
 	AskArt, Apply, DryRun bool
@@ -186,9 +202,13 @@ func runFix(cmd *cobra.Command, o fixOptions) error {
 
 	ch := librarian.Choices{FixNames: o.Names, Organize: o.Organize, DiscFolders: o.DiscFolders}
 	if wanted := len(rep.MissingArt) + len(rep.LowResArt); o.Art && o.AskArt && wanted > 0 {
-		client, err := newLibrarianArtClient()
-		if err != nil {
-			return err
+		var client librarian.ArtClient
+		if !o.Offline {
+			c, err := newLibrarianArtClient()
+			if err != nil {
+				return err
+			}
+			client = c
 		}
 		lo.Art = client
 		if !o.JSON {

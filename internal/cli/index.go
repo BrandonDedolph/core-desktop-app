@@ -67,7 +67,7 @@ track where the two disagree.`,
 
 			mapPath := genreMap
 			if !cmd.Flags().Changed("genre-map") {
-				mapPath = defaultGenreMap()
+				mapPath = resolveGenreMap(cmd)
 				if mapPath == "" {
 					fmt.Fprintln(stderr, "genre map: none found next to the source or in the repo; using tag genres only")
 				} else {
@@ -145,7 +145,7 @@ track where the two disagree.`,
 
 	cmd.Flags().StringVar(&src, "src", "", "Source music tree of \"Album - Artist\" folders (default: $CORELIB_SRC)")
 	cmd.Flags().StringVar(&out, "out", "", "Path to write CORELIB.IDX to (default: $CORELIB_OUT)")
-	cmd.Flags().StringVar(&genreMap, "genre-map", "", "JSON artist -> genre map; pass '' to use only the genres in the files' own tags (default: the built-in map, or tools/artist_genres.json when run inside the repo)")
+	cmd.Flags().StringVar(&genreMap, "genre-map", "", "JSON artist -> genre map; pass '' to use only the genres in the files' own tags (default: genre_map in core config, else the built-in map, or tools/artist_genres.json when run inside the repo)")
 	cmd.Flags().BoolVar(&showDrift, "show-drift", false, "List every track whose filename position differs from its track number, with where the number came from")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Scan and report, but write nothing")
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Don't print a line per album")

@@ -652,3 +652,55 @@ func configuredBackupDir() (string, error) {
 	}
 	return flasher.DefaultBackupDir()
 }
+
+// resolveGenreMap is --genre-map for sync and index when it was not
+// typed: the file's genre_map, else the built-in map (or the repo's
+// tools/artist_genres.json, for a developer editing it).
+func resolveGenreMap(cmd *cobra.Command) string {
+	var s string
+	if configDefault("genre_map", &s) && strings.TrimSpace(s) != "" {
+		noteFromConfig(cmd, "--genre-map", s)
+		return s
+	}
+	return defaultGenreMap()
+}
+
+// resolvePlaylists is sync --playlists: the flag, else the file's
+// playlists_dir, else "" (the syncer's <src>/Playlists).
+func resolvePlaylists(cmd *cobra.Command, cur string) string {
+	if cmd.Flags().Changed("playlists") {
+		return cur
+	}
+	var s string
+	if configDefault("playlists_dir", &s) && strings.TrimSpace(s) != "" {
+		noteFromConfig(cmd, "--playlists", s)
+		return s
+	}
+	return cur
+}
+
+// keepBackupsFlag is the hidden flag a parent hands keep_backups to its
+// elevated child with, the way it hands over --backup-dir: the child may
+// run as another account, whose config.json is not this user's. Nobody
+// types it; the file is the setting.
+const keepBackupsFlag = "keep-backups"
+
+func addKeepBackupsFlag(cmd *cobra.Command, into *int) {
+	cmd.Flags().IntVar(into, keepBackupsFlag, 0, "How many fwpart-* backups to keep (set by a parent for its elevated child)")
+	_ = cmd.Flags().MarkHidden(keepBackupsFlag)
+}
+
+// resolveKeepBackups is keep_backups for flash, update and install: the
+// hidden flag when a parent passed it, else the file, else 0 (keep all).
+// A value from the file is said once, like every other.
+func resolveKeepBackups(cmd *cobra.Command, cur int) int {
+	if f := cmd.Flags().Lookup(keepBackupsFlag); f != nil && f.Changed {
+		return cur
+	}
+	var n int
+	if !configDefault("keep_backups", &n) || n <= 0 {
+		return 0
+	}
+	noteFromConfig(cmd, "keep_backups", strconv.Itoa(n))
+	return n
+}
