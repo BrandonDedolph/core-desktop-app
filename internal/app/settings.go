@@ -95,7 +95,7 @@ const (
 	setSmallSub    = "a cover smaller than this on its shorter side is listed on the Fix tab"
 	setBackupDir   = "Backup folder"
 	setBackupSub   = "the default — the command line puts its backups here too"
-	setBackupSub2  = "chosen here; the command line still uses its own default"
+	setBackupSub2  = "chosen here; the command line puts its backups here too"
 	setBrowse      = "Browse…"
 	setShowFolder  = "Show folder"
 	setRG          = "ReplayGain"

@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/jpeg"
@@ -622,8 +623,12 @@ func (b *RealBackend) Backup(ctx context.Context, emit func(Event)) (string, err
 
 	dir := b.backupDir()
 	if dir == "" {
-		_, err = flasher.DefaultBackupDir()
-		return "", err
+		// backupDir is "" only when the user config directory itself
+		// cannot be found; say so rather than hand back an empty path.
+		if _, err := flasher.DefaultBackupDir(); err != nil {
+			return "", err
+		}
+		return "", errors.New("backup: no backup folder: the user config directory could not be found")
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err

@@ -74,6 +74,7 @@ func DemoState() State {
 		CLIPath:   `C:\Users\you\ipod-bringup\core.exe`,
 		FixNames:  true,
 		Organize:  true,
+		FixLowRes: true,
 	}
 	st.CheckedAt = time.Now().Add(-3 * time.Minute)
 	st.Release.Published = time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC)
