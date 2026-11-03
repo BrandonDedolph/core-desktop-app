@@ -583,22 +583,14 @@ func (u *UI) tileArt(gtx C, a Album) D {
 	if !drawn {
 		u.plainTile(gtx, a, sz)
 	}
-	if a.State == TileOnDevice {
-		// Already on the iPod: the same picture, quieter, so what is
-		// about to move is what the eye lands on.
-		paint.FillShape(gtx.Ops, veil(u.pal.Surface),
-			clip.Rect{Max: sz}.Op())
-	}
+	// Every cover at full strength, on the iPod or not. The UX pass drew a
+	// 40 % Surface veil over the albums already on the iPod so the ones
+	// about to move stood out; the owner wanted the listing as bright as
+	// the album sheet (2026-11-03), and the NEW and CHANGED badges are the
+	// signal on their own.
 	u.badge(gtx, a, sz)
 	u.playingBadge(gtx, a, sz)
 	return D{Size: sz}
-}
-
-// veil is the Surface colour at a third opacity: the dimming for an album that
-// is already on the device.
-func veil(c color.NRGBA) color.NRGBA {
-	c.A = 0x66
-	return c
 }
 
 // plainTile is the fallback picture: a flat colour from the album's name with

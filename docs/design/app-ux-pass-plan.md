@@ -109,7 +109,7 @@ drive the pass:
   today. The right-hand note loses the CLI path (iPod tab shows "checked for
   updates just now / never").
 - **Albums.** As today, in the new tokens: tiles, NEW badge = ink fill,
-  CHANGED = ink outline; already-synced tiles dimmed; tile fallback colours
+  CHANGED = ink outline; already-synced tiles dimmed (the dimming was removed 2026-11-03 at the owner's ask: every cover full, the badges carry the state); tile fallback colours
   come from the palette's muted family rather than hard-coded RGB.
 - **Library.** As today with the renames; the per-album art rows lose the
   raw score/provider (log keeps them); "Use this cover" / "Skip".
