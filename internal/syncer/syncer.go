@@ -290,6 +290,13 @@ type Plan struct {
 	// Src and Dst are carried so a plan can be printed on its own.
 	Src string `json:"src"`
 	Dst string `json:"dst"`
+
+	// Scan is the source scan the plan was made from: every track's
+	// artist, genre (through the genre map), number and length. The
+	// desktop app's Music views group by it, so they read nothing the
+	// plan did not already read. Not serialised: it is the library, not
+	// the plan.
+	Scan *library.Scan `json:"-"`
 }
 
 // ScanSource runs the checks that must happen before anything reads the
@@ -371,7 +378,7 @@ func MakePlan(o Options, scan *library.Scan) (*Plan, error) {
 		return nil, errors.New("syncer: no scan to plan from")
 	}
 
-	p := &Plan{Src: o.Src, Dst: o.Dst, Albums: len(scan.Albums)}
+	p := &Plan{Src: o.Src, Dst: o.Dst, Albums: len(scan.Albums), Scan: scan}
 	// The scan's own complaints are the user's business: a ".FLAC" that the
 	// index does not carry is a track that will not be on the device, and
 	// this is where they get told. The copy list is built from what the scan
