@@ -166,6 +166,55 @@ and drag-and-drop onto the window — Gio's Windows backend does not take
 file drops (it has clipboard text only), so a dropped folder cannot be
 received without a change to the toolkit.
 
+**Deviations (as built, 2026-11-03).**
+
+- **Always a copy, then the originals go.** The owner decided the
+  copy-or-move question differently from stage 2: there is no radio. Every
+  file is copied into the library and verified by SHA-256 against its
+  original (hashed as it is read for the copy, the copy hashed again read
+  back from the disk); only when every file of an album verified are that
+  album's originals deleted, and then their folder if that left it empty
+  (a `.cue` or a `.log` keeps it). One tick on the sheet, on by default,
+  "Delete the originals once they are safely in the library"; off, the
+  source is left alone (`--keep-originals` on the CLI, whose flag is the
+  opposite of the spec's `--move`). A mismatch, a full disk or a cancel
+  removes that album's copies and leaves its originals; the journal is
+  written before each step, so a run that dies between the copy and the
+  delete leaves both and Undo removes the copies. Undo moves the copies
+  back (a rename on one drive, copy-check-remove across two), each checked
+  against the original's hash; a copy changed since is left and listed.
+- **A cover in a copy does not stop an exact undo.** A cover embedded in a
+  copy changes its bytes, so the copy's metadata before the cover went in
+  (the region in front of the audio, which the FLAC writer never moves) is
+  kept beside the journal and the original is rebuilt from it plus the
+  copy's audio, then hashed like the rest. The cover is the album folder's
+  own picture first, then the art client's top match at 0.9 or better
+  (none when the internet switch is off); an MP3 album gets none (there is
+  no ID3 writer).
+- **Albums are found by tags, not folders.** Songs are grouped by source
+  folder and album tag, named with the organizer's artist rule (majority
+  album artist, else majority artist; a tie is a problem, not a guess),
+  and groups that name the same library folder merge (CD 1 and CD 2 in two
+  folders). The names are built with `organizer.CanonicalFolder` and a new
+  `CanonicalNumbered` (the extension the file has, so an MP3 stays an MP3;
+  "D-NN" for a flat multi-disc album, `Disc N` folders when the source had
+  them or the disc-folders setting is on), not `organizer.Canonical`,
+  which can only see one file's own artist. MP3s are added as well as
+  FLACs; the Fix tab is still FLAC only.
+- **"Already in your library" can be ticked.** Same folder (as the iPod's
+  name comparison folds it) or same songs (the duplicate check's rule,
+  against every FLAC and MP3 album in the library; off with the duplicate
+  check) start unticked with the reason; ticking one adds it, and a file
+  that would land on one already there is never written over — the album
+  fails, its copies go.
+- **The journal** is librarian's fix journal at format 3 with `adds` and
+  `add_dirs` (format 2 is the tag editor's, L5), so an older build refuses
+  it rather than reporting an undo that put nothing back; `core fix --undo`
+  reads it. The sheet's ticks are new dialog machinery (`picks`, `option`,
+  `okFor`) rather than a second sheet type. *Add music…* sits at the far
+  right of L1's view switch row, on every view (after the Songs search
+  field).
+
 ## L3 — the iPod's log in the window
 
 The log drawer gets two tabs, **This window** and **The iPod**. The second
