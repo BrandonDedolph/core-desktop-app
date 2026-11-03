@@ -46,7 +46,7 @@ func frontStrings(u *UI) []string {
 	out = append(out, menuLabels[:]...)
 	out = append(out, u.settingsStrings()...)
 	out = append(out, chooserStrings()...)
-	for k := JobNone; k <= JobEditTags; k++ {
+	for k := JobNone; k <= JobAdd; k++ {
 		out = append(out, k.String())
 	}
 	out = append(out, albumEditStrings()...)
@@ -57,6 +57,11 @@ func frontStrings(u *UI) []string {
 	// The log drawer's tabs and the iPod tab's dividers and states — not
 	// the device's own lines under them, which are the log.
 	out = append(out, devLogStrings()...)
+	add := addDialog(cannedAddPlan())
+	label, _ := add.okButton()
+	out = append(out, syncPreviewStrings(add)...)
+	out = append(out, label, add.option, addButton)
+	out = append(out, add.pickWhy...)
 	return out
 }
 

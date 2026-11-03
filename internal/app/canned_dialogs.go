@@ -8,13 +8,14 @@ import (
 
 	"github.com/BrandonDedolph/core-desktop-app/internal/devicefs"
 	"github.com/BrandonDedolph/core-desktop-app/internal/flasher"
+	"github.com/BrandonDedolph/core-desktop-app/internal/librarian"
 	"github.com/BrandonDedolph/core-desktop-app/internal/syncer"
 )
 
 // DialogKinds are the dialogs `core-app --screenshot --dialog KIND` can
 // put on screen, for review. They are drawn and nothing else: a canned
 // dialog has no job behind it, so nothing can be confirmed through one.
-var DialogKinds = []string{"write", "holding", "remove", "about", "album", "artist", "preview", "settings", "chooser", "ipodlog", "albumedit"}
+var DialogKinds = []string{"write", "holding", "remove", "about", "album", "artist", "preview", "settings", "chooser", "ipodlog", "albumedit", "add"}
 
 // cannedDialog builds one of DialogKinds against the state's device.
 func cannedDialog(u *UI, kind string) error {
@@ -90,6 +91,9 @@ func cannedDialog(u *UI, kind string) error {
 		return nil
 	case "preview":
 		u.dlg = cannedPreview(u)
+	case "add":
+		u.dlg = addDialog(cannedAddPlan())
+		u.dialogTicks()
 	default:
 		return fmt.Errorf("--dialog %q: want one of %s", kind, strings.Join(DialogKinds, ", "))
 	}
@@ -208,4 +212,31 @@ func cannedAlbumTags(a Album, tracks []Track) albumTags {
 			Number: itoa(t.Number)})
 	}
 	return at
+}
+
+// cannedAddPlan is `--dialog add`: a download folder as PlanAdd would read
+// it — three albums to add, one the library has under another name, one
+// with no tags and one in a format the iPod does not play.
+func cannedAddPlan() *librarian.AddPlan {
+	p := &librarian.AddPlan{
+		Source:  `C:\Users\you\Downloads\New music`,
+		Library: `C:\Users\you\Music\MC`,
+		Formats: map[string]int{"FLAC": 38, "MP3": 4, "M4A": 11},
+	}
+	for _, a := range []librarian.AddAlbum{
+		{Key: "Blue - Joni Mitchell", Name: "Blue - Joni Mitchell", Songs: 10, Bytes: 287_000_000},
+		{Key: "Hounds of Love - Kate Bush", Name: "Hounds of Love - Kate Bush", Songs: 12, Bytes: 341_000_000},
+		{Key: "Low - David Bowie", Name: "Low - David Bowie", Songs: 11, Bytes: 302_000_000,
+			InLibrary: "the same songs are in your library, in Low (2017 Remaster) - David Bowie"},
+		{Key: "Mezzanine - Massive Attack", Name: "Mezzanine - Massive Attack", Songs: 4, Bytes: 38_000_000},
+		{Key: "?rips/disc2", Name: "disc2", Songs: 5, Bytes: 118_000_000,
+			Problem: "no tags: 5 songs carry no album or artist"},
+		{Key: "?Phone", Name: "Phone", Songs: 11, Bytes: 96_000_000,
+			Problem: "11 .m4a: a format the iPod cannot play"},
+	} {
+		p.Albums = append(p.Albums, a)
+		p.Songs += a.Songs
+		p.Bytes += a.Bytes
+	}
+	return p
 }

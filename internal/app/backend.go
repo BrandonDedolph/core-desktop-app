@@ -161,6 +161,17 @@ type Backend interface {
 	// takes back the tags and the names together.
 	EditTags(ctx context.Context, root, dir string, edits []librarian.TagEdit, after string,
 		emit func(Event)) (*librarian.EditResult, error)
+	// PlanAdd reads a folder from outside the library and says what Add
+	// music… would do with it: the albums, their names in the library,
+	// and the ones that cannot be added or are there already. It writes
+	// nothing and makes no network request.
+	PlanAdd(ctx context.Context, src, lib string, emit func(Event)) (*librarian.AddPlan, error)
+	// Add copies the chosen albums into the library, verifies every copy
+	// against its original and, with deleteOriginals, only then deletes
+	// the originals; journaled and chained to after, so UndoFix puts the
+	// originals back.
+	Add(ctx context.Context, plan *librarian.AddPlan, chosen []librarian.AlbumKey, deleteOriginals bool,
+		after string, emit func(Event)) (*librarian.AddResult, error)
 }
 
 // RealBackend is the production wiring. Its fields are the two paths
@@ -947,6 +958,28 @@ func (b *RealBackend) Fix(ctx context.Context, rep *librarian.Report, ch librari
 		Art:         b.artClient(),
 		Progress:    libEvents(emit),
 		DiscFolders: ch.DiscFolders,
+	})
+}
+
+// PlanAdd is librarian.PlanAdd with the library's own options: the disc
+// folders setting and the duplicate check.
+func (b *RealBackend) PlanAdd(ctx context.Context, src, lib string, emit func(Event)) (*librarian.AddPlan, error) {
+	_, skipDup, _, _ := b.settingsNow()
+	return librarian.PlanAdd(ctx, src, lib, librarian.Options{
+		Progress:       libEvents(emit),
+		SkipDuplicates: skipDup,
+	})
+}
+
+// Add is librarian.Add. The art client is the internet switch's: nil when
+// it is off, so an album with no cover gets its own folder's picture or
+// none.
+func (b *RealBackend) Add(ctx context.Context, plan *librarian.AddPlan, chosen []librarian.AlbumKey,
+	deleteOriginals bool, after string, emit func(Event)) (*librarian.AddResult, error) {
+	return librarian.Add(ctx, plan, chosen, deleteOriginals, librarian.Options{
+		Art:      b.artClient(),
+		Progress: libEvents(emit),
+		After:    after,
 	})
 }
 
