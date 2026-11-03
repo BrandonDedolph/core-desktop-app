@@ -394,7 +394,7 @@ type State struct {
 
 	// Tab is which of the three screens the body shows.
 	Tab Tab
-	// View is the Music tab's view (Albums · Artists · Genres · Songs),
+	// View is the Library tab's view (Albums · Artists · Genres · Songs),
 	// and Genre the genre whose albums the Genres view is showing ("":
 	// the list of genres). View is remembered (config.json's
 	// music_view); Genre is not.
@@ -502,10 +502,10 @@ type Tab int
 // The tabs. Playlists is phase 3 and is deliberately not here: a tab
 // that opens an empty pane teaches people the app is unfinished.
 const (
-	// TabAlbums is the grid, drawn as "Music".
+	// TabAlbums is the grid, drawn as "Library".
 	TabAlbums Tab = iota
-	// TabLibrary is the "things to fix" list, drawn as "Fix".
-	TabLibrary
+	// TabFix is the "things to fix" list, drawn as "Fix".
+	TabFix
 	// TabDetails is the device facts and the firmware, drawn as "Summary".
 	TabDetails
 )
@@ -513,12 +513,12 @@ const (
 // String names the tab as it is drawn.
 func (t Tab) String() string {
 	switch t {
-	case TabLibrary:
+	case TabFix:
 		return "Fix"
 	case TabDetails:
 		return "Summary"
 	default:
-		return "Music"
+		return "Library"
 	}
 }
 
@@ -581,7 +581,7 @@ type Album struct {
 	// Artist is the album's own artist (the folder's, what the iPod
 	// groups by) and Songs its tracks as the scan read them — artist,
 	// genre, number, length, and each one's side of the plan. Both come
-	// from the plan's scan (songsFromScan); the Music tab's Artists,
+	// from the plan's scan (songsFromScan); the Library tab's Artists,
 	// Genres and Songs views are built from them (BuildCatalog).
 	Artist string
 	Songs  []Song

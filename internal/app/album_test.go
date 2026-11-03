@@ -379,7 +379,7 @@ func TestSpaceTogglesOnlyWithoutAFocusedEditor(t *testing.T) {
 	}
 
 	// The Library tab's music-folder field, focused.
-	u.st.Tab = TabLibrary
+	u.st.Tab = TabFix
 	var r input.Router
 	g := newTestContext(900, 600)
 	g.Source = r.Source()

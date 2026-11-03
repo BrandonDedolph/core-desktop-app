@@ -220,7 +220,7 @@ func remainInLight() []Track {
 // this screen a person has to read before pressing the button.
 func LibraryState() State {
 	st := DemoState()
-	st.Tab = TabLibrary
+	st.Tab = TabFix
 	st.Category = CatNames
 	st.Scanned = time.Now()
 	root := st.Source

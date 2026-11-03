@@ -369,7 +369,7 @@ func TestTheLibraryTabWorksWithNoIPod(t *testing.T) {
 		t.Fatalf("phase is %v", u.st.Phase())
 	}
 	gtx := newTestContext(900, 600)
-	u.st.Tab = TabLibrary
+	u.st.Tab = TabFix
 	if got := u.Layout(gtx).Size; got.X != 900 {
 		t.Errorf("the window laid out %v", got)
 	}
@@ -396,7 +396,7 @@ func TestTheCostLineNamesTheRecopy(t *testing.T) {
 // looks at, so it has to have something in every row.
 func TestLibraryStateHasEveryCategory(t *testing.T) {
 	st := LibraryState()
-	if st.Tab != TabLibrary {
+	if st.Tab != TabFix {
 		t.Error("the canned Library state does not open on the Library tab")
 	}
 	for _, c := range Categories {

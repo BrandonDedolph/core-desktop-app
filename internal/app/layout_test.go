@@ -66,7 +66,7 @@ func detailsState() State {
 // got wrong in exactly one direction: something sticking out of the frame.
 func TestEveryTabFitsItsWindow(t *testing.T) {
 	sizes := [][2]int{{MinWidth, MinHeight}, {900, 600}, {1400, 900}}
-	for _, tab := range []Tab{TabAlbums, TabLibrary, TabDetails} {
+	for _, tab := range []Tab{TabAlbums, TabFix, TabDetails} {
 		for _, sz := range sizes {
 			st := LibraryState()
 			st.Tab = tab

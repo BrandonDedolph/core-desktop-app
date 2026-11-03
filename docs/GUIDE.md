@@ -58,7 +58,7 @@ shows it within two seconds.
     the next sync copies (filled: new; a ring: changed). Click a column head to sort by it, again
     to reverse it; type in *Search songs* to narrow it by title, artist or album. A click plays
     the song here, and the album carries on after it.
-- **Adding music.** *Add music…* — at the right of the view switch, on the empty Music tab,
+- **Adding music.** *Add music…* — at the right of the view switch, on the empty Library tab,
   and in **···** — asks for a folder (a ripped CD, a download, a USB stick, a whole second
   library) and shows one sheet, *Adding to your library*: where it is from, what was found, and
   one row per album with the name it will get in your music folder (`Album - Artist`, from its

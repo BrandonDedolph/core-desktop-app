@@ -13,7 +13,7 @@ func TestFooterFolderGoesToTheLibraryField(t *testing.T) {
 	u.SetState(DemoState())
 	u.folderLink.Click()
 	u.Layout(newTestContext(900, 600))
-	if u.st.Tab != TabLibrary {
+	if u.st.Tab != TabFix {
 		t.Fatalf("tab = %v", u.st.Tab)
 	}
 	// The Library tab drew its field this frame or will next frame, and

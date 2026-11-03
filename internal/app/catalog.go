@@ -10,7 +10,7 @@ import (
 	"github.com/BrandonDedolph/core-desktop-app/internal/syncer"
 )
 
-// The Music tab's views (library plan, L1): Albums, Artists, Genres and
+// The Library tab's views (library plan, L1): Albums, Artists, Genres and
 // Songs, the iPod's own top menu. All four come from the one plan the grid is
 // drawn from — the scan behind it carries every track's artist, genre (through
 // the genre map a sync uses), number and length — so nothing is read twice.
@@ -39,7 +39,7 @@ type Song struct {
 	State TileState
 }
 
-// MusicView is one of the Music tab's four views.
+// MusicView is one of the Library tab's four views.
 type MusicView int
 
 // The views, in the switch's order.

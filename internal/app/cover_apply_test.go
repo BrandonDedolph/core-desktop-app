@@ -19,7 +19,7 @@ func oneLowRes(t *testing.T) (*UI, *fakeBackend) {
 	f := &fakeBackend{report: rep}
 	u := newTestUI(f)
 	u.st.Report = rep
-	u.st.Tab, u.st.Category = TabLibrary, CatLowRes
+	u.st.Tab, u.st.Category = TabFix, CatLowRes
 	u.st.ArtCands = map[librarian.AlbumKey][]artfetch.Candidate{"Scam - Steely Dan": {{
 		Provider: "itunes", Artist: "Steely Dan", Album: "The Royal Scam", Score: 1, Width: 1200, Height: 1200}}}
 	u.st.Journal = "/journal/earlier.json"

@@ -638,7 +638,7 @@ func (u *UI) libraryEvents(gtx C, busy bool) {
 	for _, c := range Categories {
 		if u.catClicks[c].Clicked(gtx) {
 			u.st.Category = c
-			u.st.Tab = TabLibrary
+			u.st.Tab = TabFix
 		}
 	}
 	u.tickEvents(gtx, busy)
