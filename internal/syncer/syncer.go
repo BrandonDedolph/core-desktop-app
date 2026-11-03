@@ -49,6 +49,34 @@ import (
 // off; anything tighter re-copies the whole library on every run.
 const MTimeSlack = 2 * time.Second
 
+// HourShift is the one other difference two timestamps may have and still
+// mean the same file: exactly one hour, give or take MTimeSlack. FAT stores
+// local time, and Windows turns a FAT timestamp into UTC with the offset in
+// force NOW — so the morning after the clocks change, every file on the iPod
+// reads an hour older (or newer) than it did when it was written, while the
+// source on NTFS (which stores UTC) has not moved. Without this, the first
+// sync after a daylight-saving change would push the whole library over USB
+// to change nothing. A real edit an hour after the copy, to the second, is
+// the one case this cannot tell apart; --verify can.
+const HourShift = time.Hour
+
+// sameTime reports whether two modification times are the same file's, by
+// the FAT rules above: within MTimeSlack, or within MTimeSlack of an hour
+// apart. shifted says it was the hour.
+func sameTime(a, b time.Time) (same, shifted bool) {
+	d := a.Sub(b)
+	if d < 0 {
+		d = -d
+	}
+	if d <= MTimeSlack {
+		return true, false
+	}
+	if d-HourShift <= MTimeSlack && HourShift-d <= MTimeSlack {
+		return true, true
+	}
+	return false, false
+}
+
 // CopyBufferSize is the streaming buffer. One MiB is large enough that the USB
 // bridge sees big writes (small ones are what make an iPod sync take an hour)
 // and small enough to be irrelevant to host memory.
@@ -514,9 +542,10 @@ func sidecarsValid(dir string) bool {
 // test alone would keep them for ever and the user would see the new art only
 // after --art-refresh.
 //
-// The comparison carries MTimeSlack for the same reason the copy decision
-// does: FAT stores a timestamp to two seconds, so a sidecar written moments
-// after its source can read back as older than it.
+// The comparison carries MTimeSlack and HourShift for the same reasons the
+// copy decision does: FAT stores a timestamp to two seconds, so a sidecar
+// written moments after its source can read back as older than it, and after
+// a daylight-saving change the whole volume reads an hour off.
 func sidecarsStale(dir, srcFLAC string) bool {
 	si, err := os.Stat(srcFLAC)
 	if err != nil {
@@ -527,7 +556,7 @@ func sidecarsStale(dir, srcFLAC string) bool {
 		if err != nil {
 			return true
 		}
-		if si.ModTime().Sub(di.ModTime()) > MTimeSlack {
+		if same, _ := sameTime(si.ModTime(), di.ModTime()); !same && si.ModTime().After(di.ModTime()) {
 			return true
 		}
 	}
@@ -551,14 +580,18 @@ func unchanged(src, dst string, si, di os.FileInfo, verify bool) (bool, string, 
 		}
 		return true, "content identical (--verify)", nil
 	}
+	same, shifted := sameTime(si.ModTime(), di.ModTime())
+	switch {
+	case shifted:
+		return true, "same size; the time differs by one hour, a daylight-saving shift on the iPod's FAT volume", nil
+	case same:
+		return true, "same size and time", nil
+	}
 	d := si.ModTime().Sub(di.ModTime())
 	if d < 0 {
-		d = -d
+		return false, fmt.Sprintf("the copy on the device is %s newer than the source", (-d).Round(time.Second)), nil
 	}
-	if d > MTimeSlack {
-		return false, fmt.Sprintf("modified %s after the copy on the device", d.Round(time.Second)), nil
-	}
-	return true, "same size and time", nil
+	return false, fmt.Sprintf("modified %s after the copy on the device", d.Round(time.Second)), nil
 }
 
 // sameContent compares two files by SHA-256. Content, not a timestamp, is the

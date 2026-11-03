@@ -140,8 +140,9 @@ the five `Music/Playlists/On-The-Go N.m3u8` slots if they are missing (an existi
 reset, so your settings, your log and your saved lists survive), **sets the iPod's clock**, and
 writes `Music/CORELIB.IDX` last — last on purpose, so the index never names files a failed copy did
 not leave behind. A track already on
-the device is skipped when its size matches and its timestamp is within two seconds; `--verify`
-compares content instead.
+the device is skipped when its size matches and its timestamp is within two seconds — or exactly
+an hour off, which is what every file on the iPod reads the morning after the clocks change (FAT
+stores local time); `--verify` compares content instead.
 
 ```
 core sync --src … --dst D:\ --dry-run       # print the whole plan, write nothing
