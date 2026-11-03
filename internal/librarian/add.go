@@ -865,6 +865,13 @@ func addAlbum(ctx context.Context, j *fixJournal, plan *AddPlan, a AddAlbum, del
 		if err != nil || fi.Size() != f.Size {
 			return AddedAlbum{}, fmt.Errorf("%s changed since the folder was read (read it again)", filepath.Base(f.From))
 		}
+		// A destination that is there already is found now, before any file
+		// of the album is copied or journaled: an op in the journal that
+		// names a file this run did not make is one a crash would hand to
+		// Undo as its own to remove.
+		if _, err := os.Lstat(f.To); err == nil {
+			return AddedAlbum{}, fmt.Errorf("%s is already in the library; nothing was written over it", f.To)
+		}
 	}
 
 	first := len(j.Adds)
