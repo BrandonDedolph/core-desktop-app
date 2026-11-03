@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/BrandonDedolph/core-desktop-app/internal/artfetch"
+	"github.com/BrandonDedolph/core-desktop-app/internal/devicefs"
 	"github.com/BrandonDedolph/core-desktop-app/internal/disk"
 	"github.com/BrandonDedolph/core-desktop-app/internal/doctor"
 	"github.com/BrandonDedolph/core-desktop-app/internal/eject"
@@ -146,6 +147,14 @@ type Backend interface {
 	// journaled and chained to after, the session's previous journal.
 	ApplyCover(ctx context.Context, rep *librarian.Report, key librarian.AlbumKey, c artfetch.Candidate,
 		after string, emit func(Event)) (*librarian.Result, error)
+
+	// ReadDeviceLog reads the iPod's own log, CORELOG.BIN on the volume,
+	// into its boots, newest first, each with its entries in the order
+	// and decoding of the firmware's tools/make_log.py --dump. Read-only:
+	// the file is the device's, and only a sync or an install ever
+	// writes it. A missing file is an error that errors.Is
+	// fs.ErrNotExist; a file with no valid header is devicefs.ErrLogHeader.
+	ReadDeviceLog(ctx context.Context, volume string) ([]doctor.BootLog, error)
 }
 
 // RealBackend is the production wiring. Its fields are the two paths
@@ -1012,4 +1021,17 @@ func (b *RealBackend) ApplyCover(ctx context.Context, rep *librarian.Report, key
 		Art:      b.artClient(),
 		Progress: libEvents(emit),
 	})
+}
+
+// ReadDeviceLog reads CORELOG.BIN off the volume and splits it into boots.
+func (b *RealBackend) ReadDeviceLog(ctx context.Context, volume string) ([]doctor.BootLog, error) {
+	data, err := os.ReadFile(filepath.Join(volume, devicefs.LogName))
+	if err != nil {
+		return nil, err
+	}
+	ring, err := devicefs.ReadLogRing(data)
+	if err != nil {
+		return nil, err
+	}
+	return doctor.Boots(ring), nil
 }

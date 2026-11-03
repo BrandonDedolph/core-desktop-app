@@ -9,6 +9,7 @@ import (
 
 	"github.com/BrandonDedolph/core-desktop-app/internal/artfetch"
 	"github.com/BrandonDedolph/core-desktop-app/internal/disk"
+	"github.com/BrandonDedolph/core-desktop-app/internal/doctor"
 	"github.com/BrandonDedolph/core-desktop-app/internal/flasher"
 	"github.com/BrandonDedolph/core-desktop-app/internal/fwpart"
 	"github.com/BrandonDedolph/core-desktop-app/internal/installer"
@@ -79,6 +80,15 @@ type fakeBackend struct {
 	releaseCalls  int
 	refreshCalls  int
 	flashFirmware string
+
+	// devLog/devLogErr are what ReadDeviceLog answers; devLogCalls
+	// counts the reads and their volumes, and readInSync records a read
+	// that came while a Sync was still running — which must never happen.
+	devLog      []doctor.BootLog
+	devLogErr   error
+	devLogCalls []string
+	inSync      bool
+	readInSync  bool
 
 	syncCalls   []syncer.Options
 	flashCalls  []string
@@ -320,6 +330,14 @@ func (f *fakeBackend) Sync(ctx context.Context, o syncer.Options, emit func(Even
 	emit(Event{Kind: EventLog, Text: "sync call " + itoa(n)})
 	emit(Event{Kind: EventProgress, Text: "working", Pct: 0.5})
 	if block != nil {
+		f.mu.Lock()
+		f.inSync = true
+		f.mu.Unlock()
+		defer func() {
+			f.mu.Lock()
+			f.inSync = false
+			f.mu.Unlock()
+		}()
 		select {
 		case <-block:
 		case <-ctx.Done():
@@ -348,6 +366,17 @@ func (f *fakeBackend) RelaunchApp(exe string) error {
 	defer f.mu.Unlock()
 	f.relaunched = append(f.relaunched, exe)
 	return nil
+}
+
+// ReadDeviceLog answers from devLog/devLogErr and counts the call.
+func (f *fakeBackend) ReadDeviceLog(ctx context.Context, volume string) ([]doctor.BootLog, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.devLogCalls = append(f.devLogCalls, volume)
+	if f.inSync {
+		f.readInSync = true
+	}
+	return f.devLog, f.devLogErr
 }
 
 // AppRelease answers from appTag/appURL/appErr.

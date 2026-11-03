@@ -50,6 +50,12 @@ func (u *UI) startRefresh() {
 		u.mu.Unlock()
 		if dev.Found {
 			u.readBackups(ctx, dev.Serial)
+			if dev.Volume != "" {
+				// The drawer's iPod tab, read again with everything
+				// else (devlog.go). Refresh writes nothing, so this is
+				// never a read during a write.
+				u.readDeviceLog(ctx, dev.Volume)
+			}
 			emit(Event{Kind: EventLog, Text: fmt.Sprintf("device: %s — %s, %s",
 				dev.Path, dev.Model, disk.HumanSize(dev.Size))})
 			if dev.Installed.Description != "" {

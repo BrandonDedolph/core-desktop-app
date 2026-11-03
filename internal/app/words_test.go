@@ -43,6 +43,9 @@ func frontStrings(u *UI) []string {
 		out = append(out, c.Title(), c.Sub())
 	}
 	out = append(out, syncPreviewStrings(cannedPreview(u))...)
+	// The log drawer's tabs and the iPod tab's dividers and states — not
+	// the device's own lines under them, which are the log.
+	out = append(out, devLogStrings()...)
 	return out
 }
 
