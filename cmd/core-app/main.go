@@ -43,10 +43,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/BrandonDedolph/core-desktop-app/internal/app"
+	"github.com/BrandonDedolph/core-desktop-app/internal/selfupdate"
 	"github.com/BrandonDedolph/core-desktop-app/internal/version"
 )
 
@@ -164,8 +167,30 @@ func main() {
 		writeLog(*logFile, "config: %v", cfgErr)
 	}
 	writeLog(*logFile, "core-app %s starting", version.Full())
+	go cleanOld(*logFile)
 	if err := app.Main(o); err != nil {
 		fail(*logFile, err)
+	}
+}
+
+// cleanOld deletes what an app update renamed out of the way
+// (core-app.old.exe, core.old.exe). Just after a relaunch the old process
+// may not have exited yet and Windows will not delete a running file, so
+// it tries for a few seconds and leaves the rest for the next start.
+func cleanOld(logPath string) {
+	exe, err := selfupdate.Executable()
+	if err != nil {
+		return
+	}
+	dir := filepath.Dir(exe)
+	for i := 0; i < 10; i++ {
+		for _, p := range selfupdate.CleanOld(dir) {
+			writeLog(logPath, "removed %s (left by the last update)", p)
+		}
+		if m, _ := filepath.Glob(filepath.Join(dir, "core*.old.exe")); len(m) == 0 {
+			return
+		}
+		time.Sleep(time.Second)
 	}
 }
 

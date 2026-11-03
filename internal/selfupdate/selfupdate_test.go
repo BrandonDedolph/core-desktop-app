@@ -455,3 +455,20 @@ func TestSibling(t *testing.T) {
 		t.Errorf("Sibling = %q %v", p, ok)
 	}
 }
+
+func TestTargets(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "core-app.exe")
+	os.WriteFile(exe, nil, 0o755)
+	if got := Targets("windows", exe, App); !reflect.DeepEqual(got, []Target{{App, exe}}) {
+		t.Errorf("alone: %v", got)
+	}
+	cli := filepath.Join(dir, "core.exe")
+	os.WriteFile(cli, nil, 0o755)
+	if got := Targets("windows", exe, App); !reflect.DeepEqual(got, []Target{{App, exe}, {CLI, cli}}) {
+		t.Errorf("with core.exe: %v", got)
+	}
+	if got := Targets("windows", cli, CLI); !reflect.DeepEqual(got, []Target{{CLI, cli}, {App, exe}}) {
+		t.Errorf("from the CLI: %v", got)
+	}
+}

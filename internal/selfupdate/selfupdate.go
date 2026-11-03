@@ -452,3 +452,18 @@ func Relaunch(exe string, args []string) error {
 	exit(0)
 	return nil
 }
+
+// Targets is what an update of the program self, running from exe,
+// replaces: exe itself, and the other program of the pair when it is
+// beside it (the app's core.exe, the CLI's core-app.exe).
+func Targets(goos, exe, self string) []Target {
+	ts := []Target{{Prog: self, Path: exe}}
+	other := App
+	if self == App {
+		other = CLI
+	}
+	if p, ok := Sibling(goos, exe, other); ok {
+		ts = append(ts, Target{Prog: other, Path: p})
+	}
+	return ts
+}
