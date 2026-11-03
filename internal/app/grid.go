@@ -140,6 +140,7 @@ func AlbumsFromPlan(plan *syncer.Plan) []Album {
 		}
 		out = append(out, *a)
 	}
+	songsFromScan(out, plan)
 	return out
 }
 
@@ -442,42 +443,28 @@ func Downscale(img image.Image, size int) image.Image {
 
 // --- drawing ------------------------------------------------------------
 
-// albumsPane is the whole Albums tab.
+// albumsPane is the Albums view: every album.
 func (u *UI) albumsPane(gtx C) D {
 	if len(u.st.Albums) == 0 {
 		return u.gridEmpty(gtx)
 	}
-	cols, tile := gridMetrics(gtx.Constraints.Max.X, gtx.Metric.PxPerDp)
-	rows := (len(u.st.Albums) + cols - 1) / cols
-	u.ensureTileClicks(len(u.st.Albums))
+	return u.albumGrid(gtx, &u.grid, nil)
+}
 
-	list := material.List(u.th, &u.grid)
-	list.Indicator.Color = u.pal.SelSub
-	list.Indicator.HoverColor = u.pal.Muted2
-	return list.Layout(gtx, rows, func(gtx C, row int) D {
-		return layout.Inset{Bottom: unit.Dp(tileGap)}.Layout(gtx, func(gtx C) D {
-			children := make([]layout.FlexChild, 0, cols*2)
-			for c := 0; c < cols; c++ {
-				i := row*cols + c
-				if c > 0 {
-					children = append(children, layout.Rigid(layout.Spacer{Width: unit.Dp(tileGap)}.Layout))
-				}
-				if i >= len(u.st.Albums) {
-					// An empty cell keeps the last row's tiles the same
-					// size as every other row's.
-					children = append(children, layout.Flexed(1, func(gtx C) D {
-						return D{Size: image.Pt(gtx.Constraints.Min.X, 0)}
-					}))
-					continue
-				}
-				a := u.st.Albums[i]
-				idx := i
-				children = append(children, layout.Flexed(1, func(gtx C) D {
-					return u.tile(gtx, a, idx, tile)
-				}))
-			}
-			return layout.Flex{Alignment: layout.Start}.Layout(gtx, children...)
-		})
+// albumGrid is the album tiles in list: the albums idx names (indices into
+// State.Albums), or all of them when idx is nil. A tile's click is the
+// album's own, so the same album in two grids is the same button.
+func (u *UI) albumGrid(gtx C, list *widget.List, idx []int) D {
+	n := len(u.st.Albums)
+	if idx != nil {
+		n = len(idx)
+	}
+	u.ensureTileClicks(len(u.st.Albums))
+	return u.tileGrid(gtx, list, n, func(gtx C, i, size int) D {
+		if idx != nil {
+			i = idx[i]
+		}
+		return u.tile(gtx, u.st.Albums[i], i, size)
 	})
 }
 
@@ -562,25 +549,7 @@ func (u *UI) tileArt(gtx C, a Album) D {
 	r := gtx.Dp(4)
 	defer clip.UniformRRect(image.Rectangle{Max: sz}, r).Push(gtx.Ops).Pop()
 
-	drawn := false
-	if img, ok := u.cover(a, sz.X); ok {
-		if b := img.Size(); b.X > 0 && b.Y > 0 {
-			// Cover the square: scale by the larger ratio and let the
-			// clip take the overhang, the way a CSS background-size:
-			// cover does. The transform goes on before the source, so
-			// the paint that follows uses both.
-			s := float32(sz.X) / float32(b.X)
-			if sy := float32(sz.Y) / float32(b.Y); sy > s {
-				s = sy
-			}
-			stack := scaleOp(gtx, s)
-			img.Add(gtx.Ops)
-			paint.PaintOp{}.Add(gtx.Ops)
-			stack.Pop()
-			drawn = true
-		}
-	}
-	if !drawn {
+	if img, ok := u.cover(a, sz.X); !ok || !u.coverFill(gtx, img, sz) {
 		u.plainTile(gtx, a, sz)
 	}
 	// Every cover at full strength, on the iPod or not. The UX pass drew a
@@ -593,15 +562,42 @@ func (u *UI) tileArt(gtx C, a Album) D {
 	return D{Size: sz}
 }
 
+// coverFill paints img over a box of sz, cropped to cover it: scaled by the
+// larger ratio with the clip taking the overhang, the way a CSS
+// background-size: cover does. False for an empty picture.
+func (u *UI) coverFill(gtx C, img paint.ImageOp, sz image.Point) bool {
+	b := img.Size()
+	if b.X <= 0 || b.Y <= 0 {
+		return false
+	}
+	s := float32(sz.X) / float32(b.X)
+	if sy := float32(sz.Y) / float32(b.Y); sy > s {
+		s = sy
+	}
+	// The transform goes on before the source, so the paint that follows
+	// uses both.
+	stack := scaleOp(gtx, s)
+	img.Add(gtx.Ops)
+	paint.PaintOp{}.Add(gtx.Ops)
+	stack.Pop()
+	return true
+}
+
 // plainTile is the fallback picture: a flat colour from the album's name with
 // its initial in the middle. It is what a library with no embedded covers
 // looks like (direction B's stated tradeoff), and it is what the canned demo
 // states draw, so the grid has something to be reviewed against with no files
 // on the machine at all.
 func (u *UI) plainTile(gtx C, a Album, sz image.Point) {
-	bg := tileColor(u.pal, a.Title+a.Dir)
+	u.plainTileFor(gtx, a.Title+a.Dir, tileTitle(a), sz)
+}
+
+// plainTileFor is plainTile for any name: the colour from seed, the
+// initial from title. An artist with no cover anywhere gets one too.
+func (u *UI) plainTileFor(gtx C, seed, title string, sz image.Point) {
+	bg := tileColor(u.pal, seed)
 	paint.FillShape(gtx.Ops, bg, clip.Rect{Max: sz}.Op())
-	letter := initial(tileTitle(a))
+	letter := initial(title)
 	if letter == "" {
 		return
 	}
@@ -666,13 +662,16 @@ func abs(n int) int {
 // Ink chip with Surface text (the selected row again), CHANGED is the same
 // chip outlined — Surface with an Ink hairline and Ink text — so the two
 // read apart without a second colour.
-func (u *UI) badge(gtx C, a Album, sz image.Point) {
-	text := a.State.Badge()
+func (u *UI) badge(gtx C, a Album, sz image.Point) { u.badgeState(gtx, a.State, sz) }
+
+// badgeState is the chip for one state; an artist's is its albums' roll-up.
+func (u *UI) badgeState(gtx C, st TileState, sz image.Point) {
+	text := st.Badge()
 	if text == "" {
 		return
 	}
 	bg, fg := u.pal.Ink, u.pal.Surface
-	if a.State == TileChanged {
+	if st == TileChanged {
 		bg, fg = u.pal.Surface, u.pal.Ink
 	}
 	gtx.Constraints = layout.Exact(sz)

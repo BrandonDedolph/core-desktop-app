@@ -41,7 +41,23 @@ shows it within two seconds.
   whether a newer Core is out, and how much space is free. Its one button says what it will do:
   *Sync 7 albums*, *Update to v0.2.2*, *Install Core*, or *Eject*. The window asks GitHub for the
   latest release once when it first finds the iPod, so an update is offered without you asking.
-- **Music** is your music folder as covers, with the ones that are new or changed marked.
+- **Music** is your music folder, in the four views the iPod's own menu has — the switch under
+  the tabs reads *Albums · Artists · Genres · Songs*, and the window opens on the one you left.
+  - **Albums** is the covers, with the ones that are new or changed marked. A click opens the
+    album: its tracklist, and a track plays on this computer.
+  - **Artists** is a tile per artist, sorted as the iPod sorts them (*The Blue Nile* under B),
+    with how many albums and songs; NEW or CHANGED when any of their albums is. An album with
+    tracks led by more than one artist — a compilation, a split — is under each of them; a guest
+    (*feat.*, a second name in the tag) is not an artist of their own. The picture is a mosaic of
+    up to four of the artist's covers (one cover alone, or their initial when there is none). A
+    click opens the artist: the picture, the facts and their albums, each opening the album.
+  - **Genres** is a row per genre — its artists and albums and a strip of covers — with the genre
+    the iPod will show: the tag's, through the genre map a sync uses. A click shows that genre's
+    albums (*‹ Genres* goes back).
+  - **Songs** is every song in a table: number, title, artist, album, time and a dot for the ones
+    the next sync copies (filled: new; a ring: changed). Click a column head to sort by it, again
+    to reverse it; type in *Search songs* to narrow it by title, artist or album. A click plays
+    the song here, and the album carries on after it.
 - **Fix** is where the music folder is set (the field and *Browse…*), and what is wrong with
   it — filenames that do not match their tags, folders to organize, missing covers — with *Fix
   all* and *Undo*. Clicking the folder at the bottom of the window brings you here. Two more
@@ -88,7 +104,10 @@ shows it within two seconds.
   ReplayGain*, the theme (System, Linen, Onyx — System follows Windows' dark-mode setting), and
   whether the window keeps its size and reopens on the last tab. It also holds the behaviour: a
   playlists folder, whether to look for covers on the internet (off, only a cover file in the
-  album folder is used) and for duplicate albums; whether a sync verifies copies by content and
+  album folder is used) and — off unless you tick it, and only with the internet on too — *Artist
+  pictures from Deezer*, which puts Deezer's photo of an artist on their tile instead of the
+  mosaic (the photos are Deezer's, for private use; they stay in the app's cache folder and are
+  never put in your music folder or on the iPod), and for duplicate albums; whether a sync verifies copies by content and
   ejects the iPod when it finishes, and a genre map file of your own; how many firmware backups
   to keep (the Apple one always stays), whether to check for updates when an iPod connects and
   to include pre-releases; and a log file, opened at the next start. *Restore defaults* puts them

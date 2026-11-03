@@ -363,3 +363,30 @@ func TestScanTreeMixedFormats(t *testing.T) {
 		t.Errorf("an upper-case .MP3 should warn: %v", scan.Warnings)
 	}
 }
+
+// TagArtist is the track's own artist tag, beside the folder's Artist that
+// the index carries: a guest or a compilation's track artist survives the
+// scan for the desktop app's Artists view, and the index does not change.
+func TestScanTreeKeepsTheTagArtist(t *testing.T) {
+	src := t.TempDir()
+	writeTree(t, src, []string{"Split - Alpha/1.flac", "Split - Alpha/2.flac", "Split - Alpha/3.flac"})
+	meta := fakeMeta(map[string]map[string]string{
+		"1.flac": {"title": "one", "artist": "Beta feat. Gamma"},
+		"2.flac": {"title": "two", "albumartist": "Alpha"},
+		"3.flac": {"title": "three"},
+	}, nil)
+	scan, err := ScanTree(src, Options{Meta: meta})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][2]string{}
+	for _, tr := range scan.Albums[0].Tracks {
+		got[tr.Title] = [2]string{tr.Artist, tr.TagArtist}
+	}
+	want := map[string][2]string{"one": {"Alpha", "Beta feat. Gamma"}, "two": {"Alpha", "Alpha"}, "three": {"Alpha", ""}}
+	for k, w := range want {
+		if got[k] != w {
+			t.Errorf("%s: (Artist, TagArtist) = %q, want %q", k, got[k], w)
+		}
+	}
+}

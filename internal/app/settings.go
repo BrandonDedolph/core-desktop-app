@@ -54,6 +54,7 @@ type settingsSheet struct {
 	genreBrowse, genreBuiltin         widget.Clickable
 	logBrowse, logShow                widget.Clickable
 	onlineTick, dupTick               widget.Bool
+	artistTick                        widget.Bool
 	verifyTick, ejectTick, preTick    widget.Bool
 	keepClicks                        [len(keepChoices)]widget.Clickable
 	updClicks                         [len(updateChoices)]widget.Clickable
@@ -157,6 +158,9 @@ const (
 	setCovers         = "Covers"
 	setOnline         = "Look for covers on the internet"
 	setOnlineSub      = "iTunes, then MusicBrainz and the Cover Art Archive; off, only a cover file in the album folder is used"
+	setArtistTick     = "Artist pictures from Deezer"
+	setArtistSub      = "the Music tab's artist photos from Deezer, whose photos they are, for private use; kept in this computer's cache, never put in the music folder or on the iPod. Off, an artist's picture is a mosaic of their covers"
+	setArtistOffline  = "needs Look for covers on the internet, which is off: an artist's picture is a mosaic of their covers"
 	setDuplicates     = "Duplicates"
 	setDupTick        = "Check for duplicate albums"
 	setCopies         = "Copies"
@@ -198,7 +202,7 @@ func (u *UI) settingsStrings() []string {
 		setThemeRow, setWindow, setWinTick, setTabTick, setFileIs + u.configPathShown(), setRestore, setFixed,
 		setClose, u.backupDirShown(), restoreBody, u.minArtNote(),
 		setSync, setDiagnostics, setPlaylists, setPlaylistsEmpty, u.playlistsSub(), setDefault, setCovers,
-		setOnline, setOnlineSub, setDuplicates, setDupTick, setCopies, setVerify, setVerifySub, setEject,
+		setOnline, setOnlineSub, setArtistTick, setArtistSub, setArtistOffline, setDuplicates, setDupTick, setCopies, setVerify, setVerifySub, setEject,
 		setGenreMap, setGenreSub, setBuiltin, setKeep, setKeepSub, u.keepNote(), setUpdates, setPreRow, setPre,
 		setPreSub, setLogFile, setLogSub,
 		setLibrarySub, setSyncSub, setFirmwareSub, setPlaybackSub, setAppearanceSub, setDiagnosticsSub,
@@ -232,6 +236,7 @@ func (u *UI) openSettings() {
 	s.genreEd.SetText(u.cfg.GenreMap)
 	s.logEd.SetText(u.cfg.LogFile)
 	s.onlineTick.Value = u.cfg.OnlineArtOn()
+	s.artistTick.Value = u.cfg.ArtistPictures
 	s.dupTick.Value = u.cfg.CheckDuplicatesOn()
 	s.verifyTick.Value = u.cfg.VerifySync
 	s.ejectTick.Value = u.cfg.EjectAfterSync
@@ -251,6 +256,7 @@ type liveSettings interface {
 	SetBackupDir(dir string)
 	SetMinArtPx(px int)
 	SetOnlineArt(on bool)
+	SetArtistPictures(on bool)
 	SetCheckDuplicates(on bool)
 	SetPrereleases(on bool)
 	SetKeepBackups(n int)
@@ -273,6 +279,25 @@ func (u *UI) setOnlineArt(v bool) {
 	if ls := u.live(); ls != nil {
 		ls.SetOnlineArt(v)
 	}
+}
+
+// setArtistPictures is Artist pictures from Deezer. The artist tiles ask
+// for their picture again (the cache key carries the choice), so the photos
+// arrive — or the mosaics come back — without a rescan.
+func (u *UI) setArtistPictures(v bool) {
+	u.cfg.ArtistPictures = v
+	u.saveConfig()
+	if ls := u.live(); ls != nil {
+		ls.SetArtistPictures(v)
+	}
+}
+
+// artistSub is the Deezer tick's sub-line: what it does, or why it cannot.
+func (u *UI) artistSub() string {
+	if !u.cfg.OnlineArtOn() {
+		return setArtistOffline
+	}
+	return setArtistSub
 }
 
 // setCheckDuplicates is Check for duplicate albums: every later scan, and
@@ -701,6 +726,7 @@ func (u *UI) restoreDefaults() {
 		ls.SetBackupDir("")
 		ls.SetMinArtPx(0)
 		ls.SetOnlineArt(true)
+		ls.SetArtistPictures(false)
 		ls.SetCheckDuplicates(true)
 		ls.SetPrereleases(false)
 		ls.SetKeepBackups(0)
@@ -710,6 +736,7 @@ func (u *UI) restoreDefaults() {
 	if s := u.settings; s != nil {
 		s.rgTick.Value, s.winTick.Value, s.tabTick.Value = true, true, true
 		s.onlineTick.Value, s.dupTick.Value = true, true
+		s.artistTick.Value = false
 		s.verifyTick.Value, s.ejectTick.Value, s.preTick.Value = false, false, false
 		s.playlistsEd.SetText("")
 		s.genreEd.SetText("")
@@ -831,6 +858,9 @@ func (u *UI) behaviourEvents(gtx C, busy bool) {
 	}
 	if s.onlineTick.Update(gtx) {
 		u.setOnlineArt(s.onlineTick.Value)
+	}
+	if s.artistTick.Update(gtx) {
+		u.setArtistPictures(s.artistTick.Value)
 	}
 	if s.dupTick.Update(gtx) {
 		u.setCheckDuplicates(s.dupTick.Value)
@@ -1059,9 +1089,17 @@ func (u *UI) libraryRows(gtx C) D {
 		},
 		func(gtx C) D {
 			s := u.settings
-			return u.rowFrame(gtx, setCovers, u.valueSub(func(gtx C) D {
-				return u.setTick(gtx, &s.onlineTick, setOnline)
-			}, setOnlineSub), nil)
+			return u.rowFrame(gtx, setCovers, func(gtx C) D {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(u.valueSub(func(gtx C) D {
+						return u.setTick(gtx, &s.onlineTick, setOnline)
+					}, setOnlineSub)),
+					layout.Rigid(layout.Spacer{Height: unit.Dp(8)}.Layout),
+					layout.Rigid(u.valueSub(func(gtx C) D {
+						return u.setTick(gtx, &s.artistTick, setArtistTick)
+					}, u.artistSub())),
+				)
+			}, nil)
 		},
 		func(gtx C) D {
 			s := u.settings

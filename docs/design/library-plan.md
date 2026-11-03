@@ -86,6 +86,41 @@ Tests: the grouping (artist sort, "The " rule, genre map, multi-artist
 albums land under each artist), the mosaic for 1/2/3/4+ covers, the song
 table's sort and filter, canned states for all four views in both palettes.
 
+**Deviations (as built, 2026-11-03).**
+
+- The switch reads **Albums · Artists · Genres · Songs**, Albums first and
+  the default (the owner's brief), not Artists first; `music_view` in
+  config.json (and `core config`) remembers it.
+- The scan's `Artist` is the *folder's* artist — what the index carries —
+  so `library.Track` gained `TagArtist` (never written to the device) and
+  `syncer.Plan` carries the `Scan` it was made from (not serialised); the
+  views read that, so there is still no second read of the library.
+- "Multi-artist albums land under each artist": each artist that *leads* a
+  track. A real library's tags are full of `blackbear; G-Eazy` and `feat.`
+  spellings — 211 tiles on the owner's MC folder, 36 with the rule — so a
+  tag is cut at `;`, ` / `, `feat.`/`ft.`/`featuring` and `(with`; `&` and
+  `,` are left alone (*Simon & Garfunkel*, *Tyler, The Creator*). The
+  Songs table still shows the whole tag.
+- The mosaic for two covers runs corner to corner (A B / B A) and for three
+  puts the first again in the last corner (A B / C A). It is composed in
+  memory, in the window's artist picture cache, dated by the albums' newest
+  file, so a rescan that changed nothing composes nothing; it is not
+  written to disk.
+- Deezer: the photo is that of the first result whose *name* matches (case,
+  punctuation and "The " folded), not `data[0]` blindly — an obscure name's
+  first hit is often somebody else. A miss is remembered for a week, a
+  failure (no network) is not retried until the next start, and the photos
+  are cached in `<UserCacheDir>/core/artists`. The Settings tick sits in
+  the Library section's Covers row under "Look for covers on the internet"
+  and says when that switch is off that it cannot work; the window and the
+  backend each check both switches.
+- A genre row holds every album one of whose tracks has that genre; an
+  album with no genre is in no row, as on the iPod.
+- The Songs table's sync dot: filled for NEW, a ring for CHANGED, nothing
+  for a song already on the iPod (the tiles' badges, as dots).
+- Canned states: `--state artists|genres|genre|songs`, `--view` for any
+  state (with `--source` too), and `--dialog artist`.
+
 ## L2 — adding music
 
 *The ask: "what the process should look like when someone wants to add

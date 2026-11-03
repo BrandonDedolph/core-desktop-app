@@ -390,6 +390,12 @@ type State struct {
 
 	// Tab is which of the three screens the body shows.
 	Tab Tab
+	// View is the Music tab's view (Albums · Artists · Genres · Songs),
+	// and Genre the genre whose albums the Genres view is showing ("":
+	// the list of genres). View is remembered (config.json's
+	// music_view); Genre is not.
+	View  MusicView
+	Genre string
 	// Albums is the grid: one tile per source album, each carrying what
 	// the last dry run said about it. It is empty until a dry run has
 	// produced a plan, which is what the window starts as soon as it
@@ -568,6 +574,13 @@ type Album struct {
 	// a canned state's, which has no files to read. Empty, the sheet
 	// reads the folder (ReadTracks). (Not "Tracks": that is the count.)
 	TrackList []Track
+	// Artist is the album's own artist (the folder's, what the iPod
+	// groups by) and Songs its tracks as the scan read them — artist,
+	// genre, number, length, and each one's side of the plan. Both come
+	// from the plan's scan (songsFromScan); the Music tab's Artists,
+	// Genres and Songs views are built from them (BuildCatalog).
+	Artist string
+	Songs  []Song
 }
 
 // Track is one row of the album sheet's tracklist.

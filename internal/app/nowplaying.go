@@ -294,7 +294,7 @@ func (u *UI) editorFocused(gtx C) bool {
 		return true
 	}
 	return gtx.Focused(&u.sourceEd) || gtx.Focused(&u.flashEd) ||
-		gtx.Focused(&u.confirmEd) || gtx.Focused(&u.nameEd)
+		gtx.Focused(&u.confirmEd) || gtx.Focused(&u.nameEd) || gtx.Focused(&u.songSearch)
 }
 
 // playKeys is Space (play/pause) and ctrl+→ / ctrl+← (next/previous). It

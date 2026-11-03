@@ -33,8 +33,14 @@ type Track struct {
 	DeviceName   string // "NN. Title.flac" / "NN. Title.mp3" — THE locator
 	DeviceFolder string // the album's FAT-safe folder, for the drift report
 
-	Title     string
-	Artist    string
+	Title  string
+	Artist string
+	// TagArtist is the track's own artist tag (ALBUMARTIST when there is
+	// no ARTIST), "" when it has none. Artist is the FOLDER's artist —
+	// what the index carries and the iPod groups by; TagArtist is what
+	// the desktop app's Artists view adds a guest or a compilation's
+	// track artist from. It is never written to the device.
+	TagArtist string
 	Genre     string
 	Disc      int
 	Track     int
@@ -264,6 +270,7 @@ func scanAlbum(adir, artistF, albumF string, files []srcFile, o Options, scan *S
 			DeviceFolder: dest,
 			Title:        title,
 			Artist:       artist,
+			TagArtist:    strings.TrimSpace(p.artist),
 			Genre:        genre,
 			Disc:         disc,
 			Track:        trk,

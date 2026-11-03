@@ -77,6 +77,14 @@ type Config struct {
 	// the art client is nil and only a cover file in the album's folder
 	// is offered.
 	OnlineArt *bool `json:"online_art,omitempty"`
+	// ArtistPictures is "Artist pictures from Deezer"; absent is OFF.
+	// Deezer's terms keep the photos Deezer's and the use private, so it
+	// is the owner's opt-in, and it needs OnlineArt too: both on, or no
+	// request goes out and an artist's picture is the mosaic of covers.
+	ArtistPictures bool `json:"artist_pictures,omitempty"`
+	// MusicView is the Music tab's view: "albums", "artists", "genres" or
+	// "songs"; absent is albums. Saved when it changes, restored at start.
+	MusicView string `json:"music_view,omitempty"`
 	// CheckDuplicates is "Check for duplicate albums"; absent is on.
 	CheckDuplicates *bool `json:"check_duplicates,omitempty"`
 	// VerifySync compares copies by content instead of size and date.

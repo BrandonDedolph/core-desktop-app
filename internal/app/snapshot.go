@@ -76,7 +76,7 @@ const snapshotWait = 10 * time.Second
 func (u *UI) settle(gtx layout.Context, limit time.Duration) error {
 	ctx, cancel := context.WithTimeout(context.Background(), limit)
 	defer cancel()
-	caches := []*thumbCache{u.thumbs, u.lowCovers, u.artThumbs}
+	caches := []*thumbCache{u.thumbs, u.lowCovers, u.artThumbs, u.artistThumbs}
 	loads := func() int {
 		n := 0
 		for _, c := range caches {
@@ -124,6 +124,7 @@ func snapshotThemed(st State, t Theme, w, h int, out string, tweak func(*UI)) er
 	// folders: a canned state's folders do not exist and every tile is its
 	// letter plate, a real library (--source) draws its own covers.
 	ui.thumbs = folderThumbs(ui.invalidate)
+	ui.coverLoad = AlbumPicture
 	ui.SetState(st)
 	if tweak != nil {
 		tweak(ui)

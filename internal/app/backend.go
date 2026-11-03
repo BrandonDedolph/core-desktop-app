@@ -189,6 +189,13 @@ type RealBackend struct {
 	// the album folder only and nothing here asks iTunes, MusicBrainz or
 	// the Cover Art Archive — not even for a thumbnail.
 	NoOnlineArt bool
+	// ArtistPictures is artist_pictures: the Music tab's artist tiles may
+	// show Deezer's photo. It takes NoOnlineArt off as well — both, or
+	// ArtistPhoto asks nobody.
+	ArtistPictures bool
+	// ArtistPhotos is the Deezer photo store; nil is the default one
+	// beside the cover cache. A test points it at an httptest server.
+	ArtistPhotos *artfetch.ArtistPhotos
 	// SkipDuplicates is check_duplicates off, handed to every Inspect.
 	SkipDuplicates bool
 	// Prereleases is config.json's prereleases: GitHub pre-releases may
@@ -240,6 +247,44 @@ func (b *RealBackend) SetOnlineArt(v bool) {
 	b.setMu.Lock()
 	b.NoOnlineArt = !v
 	b.setMu.Unlock()
+}
+
+// SetArtistPictures is Settings → Artist pictures from Deezer.
+func (b *RealBackend) SetArtistPictures(v bool) {
+	b.setMu.Lock()
+	b.ArtistPictures = v
+	b.setMu.Unlock()
+}
+
+// ArtistPhoto is one artist's Deezer photo, fit to px, when both switches
+// are on and Deezer has one; ErrNoThumb otherwise, and then the tile is the
+// mosaic. The photo is cached in the app's own cache folder and nowhere
+// else (artfetch.ArtistPhotos).
+func (b *RealBackend) ArtistPhoto(ctx context.Context, name string, px int) (image.Image, error) {
+	b.setMu.Lock()
+	allowed := !b.NoOnlineArt && b.ArtistPictures
+	if allowed && b.ArtistPhotos == nil {
+		if p, err := artfetch.DefaultArtistPhotos(); err == nil {
+			p.Deezer.HTTP = b.HTTP
+			b.ArtistPhotos = p
+		} else {
+			b.ArtistPhotos = &artfetch.ArtistPhotos{Deezer: &artfetch.Deezer{HTTP: b.HTTP}}
+		}
+	}
+	photos := b.ArtistPhotos
+	b.setMu.Unlock()
+	if !allowed {
+		return nil, ErrNoThumb
+	}
+	data, err := photos.Photo(ctx, name)
+	if err != nil {
+		return nil, ErrNoThumb
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, ErrNoThumb
+	}
+	return Downscale(img, px), nil
 }
 
 // SetCheckDuplicates is Settings → Check for duplicate albums, for every

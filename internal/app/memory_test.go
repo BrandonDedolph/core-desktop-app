@@ -54,6 +54,10 @@ func everyState() []struct {
 		{"empty", EmptyState()},
 		{"looking", LookingState()},
 		{"notinstalled", NotInstalledState()},
+		{"artists", ArtistsState()},
+		{"genres", GenresState()},
+		{"genre", GenreState()},
+		{"songs", SongsState()},
 	}
 }
 

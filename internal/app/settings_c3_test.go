@@ -183,12 +183,19 @@ func TestC3RowsAreLive(t *testing.T) {
 	u.setCheckDuplicates(false)
 	u.setPrereleases(true)
 	u.setKeepBackups(3)
+	u.setArtistPictures(true)
 	keys := readKeys(t, path)
 	for k, v := range map[string]string{"online_art": "false", "check_duplicates": "false",
-		"prereleases": "true", "keep_backups": "3"} {
+		"prereleases": "true", "keep_backups": "3", "artist_pictures": "true"} {
 		if string(keys[k]) != v {
 			t.Errorf("%s = %s, want %s", k, keys[k], v)
 		}
+	}
+	if len(f.artists) != 1 || !f.artists[0] {
+		t.Errorf("the backend heard artist pictures %v", f.artists)
+	}
+	if u.artistSub() != setArtistOffline {
+		t.Errorf("with the internet off the Deezer tick says %q", u.artistSub())
 	}
 	if len(f.online) != 1 || f.online[0] || len(f.dups) != 1 || f.dups[0] ||
 		len(f.pre) != 1 || !f.pre[0] || len(f.keep) != 1 || f.keep[0] != 3 {
@@ -212,6 +219,9 @@ func TestC3RowsAreLive(t *testing.T) {
 	}
 	if !f.online[len(f.online)-1] || !f.dups[len(f.dups)-1] || f.pre[len(f.pre)-1] || f.keep[len(f.keep)-1] != 0 {
 		t.Errorf("the backend was not reset: online %v dups %v pre %v keep %v", f.online, f.dups, f.pre, f.keep)
+	}
+	if f.artists[len(f.artists)-1] || u.cfg.ArtistPictures || u.settings.artistTick.Value {
+		t.Errorf("Restore defaults left the Deezer pictures on: backend %v", f.artists)
 	}
 	if u.settings.logEd.Text() != "" || !u.settings.onlineTick.Value {
 		t.Error("the sheet's own widgets were not reset")

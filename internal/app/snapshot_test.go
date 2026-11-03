@@ -158,6 +158,36 @@ func TestSnapshotOnyx(t *testing.T) {
 	}
 }
 
+// TestSnapshotMusicViews renders the Music tab's four views — and one genre
+// open — in both palettes, at both sizes: the switch, the artist grid, the
+// genre rows with their cover strips, and the song table with its search
+// field are each the widest thing on their screen at the 720 dp minimum.
+func TestSnapshotMusicViews(t *testing.T) {
+	dir := snapshotDir(t)
+	cases := []struct {
+		name string
+		st   State
+	}{
+		{"view-albums", DemoState()}, {"view-artists", ArtistsState()}, {"view-genres", GenresState()},
+		{"view-genre", GenreState()}, {"view-songs", SongsState()},
+	}
+	for _, c := range cases {
+		for _, th := range []Theme{ThemeLinen, ThemeOnyx} {
+			for _, sz := range [][2]int{{900, 600}, {MinWidth, MinHeight}} {
+				out := filepath.Join(dir, fmt.Sprintf("%s-%s-%dx%d.png", c.name, th, sz[0], sz[1]))
+				err := SnapshotTheme(c.st, th, sz[0], sz[1], out)
+				if errors.Is(err, ErrNoHeadless) || errors.Is(err, ErrNoGPU) {
+					t.Skipf("no headless GPU surface on this machine: %v", err)
+				}
+				if err != nil {
+					t.Fatalf("SnapshotTheme(%s): %v", out, err)
+				}
+				checkPNG(t, out, sz[0], sz[1])
+			}
+		}
+	}
+}
+
 // TestSnapshotGates renders the write dialog (tested, both themes; mid-hold),
 // the removal list, About, the album sheet, the sync preview, Settings and the chooser.
 func TestSnapshotGates(t *testing.T) {
@@ -172,6 +202,7 @@ func TestSnapshotGates(t *testing.T) {
 		{"settings", ThemeLinen}, {"settings", ThemeOnyx},
 		{"chooser", ThemeLinen}, {"chooser", ThemeOnyx},
 		{"ipodlog", ThemeLinen}, {"ipodlog", ThemeOnyx},
+		{"artist", ThemeLinen}, {"artist", ThemeOnyx},
 	}
 	for _, c := range cases {
 		out := filepath.Join(dir, fmt.Sprintf("dialog-%s-%s-900x600.png", c.kind, c.th))

@@ -384,6 +384,32 @@ type UI struct {
 	devLogQueued bool
 	devLogReads  sync.WaitGroup
 	loc          *time.Location
+
+	// The Music tab's views (music.go). cat is the groupings of
+	// catAlbums, rebuilt when State.Albums is replaced (catalog()).
+	// artistThumbs is the artist pictures' cache — mosaics and Deezer
+	// photos — and coverLoad the one album-cover decode both caches use.
+	// savedView is the view last saved to config.json.
+	cat          *Catalog
+	catAlbums    []Album
+	artistThumbs *thumbCache
+	coverLoad    func(dir string, px int) (image.Image, error)
+	savedView    MusicView
+	viewClicks   [len(musicViews)]widget.Clickable
+	genreBack    widget.Clickable
+	artistGrid   widget.List
+	genreList    widget.List
+	genreGrid    widget.List
+	songList     widget.List
+	artistClicks []*widget.Clickable
+	genreClicks  []*widget.Clickable
+	songClicks   []widget.Clickable
+	songHeads    [4]widget.Clickable
+	songSearch   widget.Editor
+	songs        songTable
+	// artist is the artist sheet (artist.go), nil when closed. The album
+	// sheet opens over it.
+	artist *artistSheet
 }
 
 // NewUI builds the window's state.
@@ -419,6 +445,11 @@ func NewUI(o Options) *UI {
 	u.logList.Axis = layout.Vertical
 	u.devLogList.Axis = layout.Vertical
 	u.itemList.Axis = layout.Vertical
+	u.artistGrid.Axis = layout.Vertical
+	u.genreList.Axis = layout.Vertical
+	u.genreGrid.Axis = layout.Vertical
+	u.songList.Axis = layout.Vertical
+	u.songSearch.SingleLine = true
 	// The log is a transcript: the interesting end is the bottom, and a
 	// pane that stays at the top while a sync scrolls past is a pane
 	// nobody reads.
@@ -428,13 +459,17 @@ func NewUI(o Options) *UI {
 	// sidecars off the UI goroutine; the candidate row fetches 200 px
 	// thumbnails through the Backend, so a test sees a fake and no
 	// network.
-	u.thumbs = newThumbCache(func(key string) (image.Image, error) {
+	u.coverLoad = func(dir string, px int) (image.Image, error) {
 		if u.be == nil {
 			return nil, ErrNoThumb
 		}
-		dir, px := splitCoverKey(key)
 		return u.be.Thumbnail(dir, px)
+	}
+	u.thumbs = newThumbCache(func(key string) (image.Image, error) {
+		dir, px := splitCoverKey(key)
+		return u.coverLoad(dir, px)
 	}, u.invalidate)
+	u.artistThumbs = newThumbCache(u.loadArtistPicture, u.invalidate)
 	u.audio = o.Audio
 	if u.audio == nil {
 		u.audio = player.New()
@@ -478,6 +513,8 @@ func NewUI(o Options) *UI {
 		u.st.Tab = tabFromKey(c.LastTab)
 	}
 	u.savedTab = u.st.Tab
+	u.st.View = viewFromKey(c.MusicView)
+	u.savedView = u.st.View
 	u.win.size = image.Pt(c.WindowDp())
 	u.lowCovers = newThumbCache(embeddedCover, u.invalidate)
 
@@ -540,6 +577,9 @@ func (u *UI) SetState(st State) {
 	if st.Advanced {
 		u.revealAdvanced()
 	}
+	u.savedView = st.View
+	u.songSearch.SetText("")
+	u.songs = songTable{}
 }
 
 // --- the per-frame work ------------------------------------------------
@@ -830,6 +870,9 @@ func markSynced(albums []Album) {
 		albums[i].Copy = 0
 		albums[i].Bytes = 0
 		albums[i].State = TileOnDevice
+		for j := range albums[i].Songs {
+			albums[i].Songs[j].State = TileOnDevice
+		}
 	}
 }
 
@@ -867,6 +910,9 @@ func (u *UI) Layout(gtx C) D {
 	case u.sheet != nil:
 		u.st.MenuOpen = false
 		u.sheetEvents(gtx)
+	case u.artist != nil:
+		u.st.MenuOpen = false
+		u.artistEvents(gtx)
 	case u.settings != nil:
 		u.st.MenuOpen = false
 		u.settingsEvents(gtx)
@@ -874,6 +920,7 @@ func (u *UI) Layout(gtx C) D {
 		u.events(gtx)
 	}
 	u.rememberTab()
+	u.rememberView()
 
 	if u.settings == nil {
 		// Settings' "System — Onyx now" is read once per opening.
@@ -883,7 +930,7 @@ func (u *UI) Layout(gtx C) D {
 	return layout.Stack{}.Layout(gtx,
 		layout.Stacked(func(gtx C) D {
 			g := gtx
-			if u.dlg != nil || u.sheet != nil || u.settings != nil || u.chooser != nil {
+			if u.dlg != nil || u.sheet != nil || u.artist != nil || u.settings != nil || u.chooser != nil {
 				// A modal that does not actually block the buttons
 				// behind it is a modal that lets somebody start a sync
 				// while a flash confirmation is on screen.
@@ -898,6 +945,15 @@ func (u *UI) Layout(gtx C) D {
 				// The sheet the chooser was opened from stays on screen
 				// under it, and takes no clicks while it is there.
 				under = gtx.Disabled()
+			}
+			if u.artist != nil {
+				// The album sheet opens over the artist's, which takes
+				// no clicks while it is there.
+				g := under
+				if u.sheet != nil {
+					g = gtx.Disabled()
+				}
+				u.artistLayer(g)
 			}
 			if u.sheet != nil {
 				u.sheetLayer(under)
@@ -946,6 +1002,7 @@ func (u *UI) events(gtx C) {
 	}
 	u.libraryEvents(gtx, busy)
 	u.gridEvents(gtx, busy)
+	u.musicEvents(gtx)
 
 	if !busy {
 		if u.primaryBtn.Clicked(gtx) {
@@ -1693,11 +1750,31 @@ func (u *UI) tabNote() string {
 		}
 		return "scanned " + ago(time.Since(u.st.Scanned))
 	case TabAlbums:
-		if n := len(u.st.Albums); n > 0 {
-			return fmt.Sprintf("%d albums · %d new · %d changed", n,
-				countState(u.st.Albums, TileNew), countState(u.st.Albums, TileChanged))
+		n := len(u.st.Albums)
+		if n == 0 {
+			return ""
 		}
-		return ""
+		switch u.st.View {
+		case ViewArtists:
+			return nOf(len(u.catalog().Artists), "artist")
+		case ViewGenres:
+			if u.st.Genre != "" {
+				for _, g := range u.catalog().Genres {
+					if g.Name == u.st.Genre {
+						return g.Facts
+					}
+				}
+			}
+			return nOf(len(u.catalog().Genres), "genre")
+		case ViewSongs:
+			all := len(u.catalog().Songs)
+			if shown := len(u.songOrder()); shown != all {
+				return fmt.Sprintf("%d of %d songs", shown, all)
+			}
+			return nOf(all, "song")
+		}
+		return fmt.Sprintf("%d albums · %d new · %d changed", n,
+			countState(u.st.Albums, TileNew), countState(u.st.Albums, TileChanged))
 	default:
 		if u.st.CheckedAt.IsZero() {
 			return "checked for updates: never"
@@ -1843,7 +1920,7 @@ func (u *UI) body(gtx C) D {
 	case TabDetails:
 		return u.ipodPane(gtx)
 	default:
-		return u.albumsPane(gtx)
+		return u.musicPane(gtx)
 	}
 }
 
