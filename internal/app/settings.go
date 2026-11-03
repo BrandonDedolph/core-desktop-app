@@ -129,8 +129,8 @@ const (
 	setLowRes      = "Replace low-resolution covers"
 	setDiscs       = "Split multi-disc albums into disc folders"
 	setFixAllSub   = "what Fix all does — the same ticks as on the Fix tab"
-	setSmallCovers = "Small covers"
-	setSmallSub    = "a cover smaller than this on its shorter side is listed on the Fix tab"
+	setSmallCovers = "Low-resolution covers"
+	setSmallSub    = "a cover smaller than this on its shorter side is low-resolution: the Fix tab lists it and Fix all replaces it with a larger one. The iPod draws covers at 120 px, so this is about your music folder, not the iPod"
 	setBackupDir   = "Backup folder"
 	setBackupSub   = "the default — the command line puts its backups here too"
 	setBackupSub2  = "chosen here; the command line puts its backups here too"
@@ -167,13 +167,27 @@ const (
 	setGenreSub       = "fills in a genre the tags leave out; the built-in map when empty"
 	setBuiltin        = "Built-in"
 	setKeep           = "Keep backups"
-	setKeepSub        = "the Apple firmware backup is always kept"
+	setKeepSub        = "a flash backs the whole firmware partition up first; this is how many of those to keep — the Apple firmware backup is always kept"
 	setUpdates        = "Check for updates"
 	setPreRow         = "Pre-releases"
 	setPre            = "Include pre-releases"
 	setPreSub         = "for trying a release candidate on your own iPod"
 	setLogFile        = "Log file"
-	setLogSub         = "takes effect at the next start"
+	setLogSub         = "the window's log, appended to this file; takes effect at the next start"
+
+	// The one sentence under each heading that says what the section is
+	// for, and the sub-lines that answer "what happens if I change this"
+	// for the rows whose label is a bare noun.
+	setLibrarySub     = "Where your music is, and what Fix all is allowed to change in it."
+	setSyncSub        = "How copies to the iPod are checked, and what happens after."
+	setFirmwareSub    = "Backups taken before a flash, and how the app learns about releases."
+	setPlaybackSub    = "Playing albums on this computer."
+	setAppearanceSub  = "The window."
+	setDiagnosticsSub = "For sending a log with a bug report."
+	setDupSub         = "the Fix tab lists albums whose songs are also in another folder"
+	setEjectSub       = "so the cable can be pulled as soon as the copy ends"
+	setUpdatesSub     = "asks GitHub once, when an iPod connects; Check for updates in the ··· menu works either way"
+	setThemeSub       = "System follows Windows' light or dark apps setting"
 )
 
 // settingsStrings is every string the sheet can show, for the words test.
@@ -186,7 +200,9 @@ func (u *UI) settingsStrings() []string {
 		setSync, setDiagnostics, setPlaylists, setPlaylistsEmpty, u.playlistsSub(), setDefault, setCovers,
 		setOnline, setOnlineSub, setDuplicates, setDupTick, setCopies, setVerify, setVerifySub, setEject,
 		setGenreMap, setGenreSub, setBuiltin, setKeep, setKeepSub, u.keepNote(), setUpdates, setPreRow, setPre,
-		setPreSub, setLogFile, setLogSub}
+		setPreSub, setLogFile, setLogSub,
+		setLibrarySub, setSyncSub, setFirmwareSub, setPlaybackSub, setAppearanceSub, setDiagnosticsSub,
+		setDupSub, setEjectSub, setUpdatesSub, setThemeSub}
 	for _, c := range minArtChoices {
 		out = append(out, c.label)
 	}
@@ -663,7 +679,7 @@ func (u *UI) saveWindowLater(gtx C) {
 
 // restoreBody is the Restore defaults question.
 const restoreBody = "Every setting goes back to how it was the first time the app opened — the theme, " +
-	"the Fix all ticks, the small-cover line, the backup folder, ReplayGain, the volume, the window " +
+	"the Fix all ticks, the low-resolution line, the backup folder, ReplayGain, the volume, the window " +
 	"size and the tab, and the cover, sync, update and log choices. The music folder and your iPods' " +
 	"names are kept."
 
@@ -949,12 +965,12 @@ func (u *UI) settingsBody(gtx C) D {
 func (u *UI) settingsList(gtx C) D {
 	s := u.settings
 	items := []layout.Widget{
-		u.setHeading(setLibrary), u.libraryRows,
-		u.setHeading(setSync), u.syncRows,
-		u.setHeading(setFirmware), u.firmwareRows,
-		u.setHeading(setPlayback), u.playbackRows,
-		u.setHeading(setAppearance), u.appearanceRows,
-		u.setHeading(setDiagnostics), u.diagnosticsRows,
+		u.setHeading(setLibrary, setLibrarySub), u.libraryRows,
+		u.setHeading(setSync, setSyncSub), u.syncRows,
+		u.setHeading(setFirmware, setFirmwareSub), u.firmwareRows,
+		u.setHeading(setPlayback, setPlaybackSub), u.playbackRows,
+		u.setHeading(setAppearance, setAppearanceSub), u.appearanceRows,
+		u.setHeading(setDiagnostics, setDiagnosticsSub), u.diagnosticsRows,
 		u.settingsFile,
 	}
 	list := material.List(u.th, &s.list)
@@ -967,14 +983,25 @@ func (u *UI) settingsList(gtx C) D {
 	})
 }
 
-// setHeading is one section's name over its rows.
-func (u *UI) setHeading(name string) layout.Widget {
+// setHeading is one section's name over its rows, with the sentence that
+// says what the section is for. The name is in Ink, a size up from the
+// rows, and the air above it is what separates one section from the last:
+// six headings in the rows' own muted type blurred into them (the first
+// Windows bench, docs/design/bench-2026-11-03.md).
+func (u *UI) setHeading(name, sub string) layout.Widget {
 	return func(gtx C) D {
-		return layout.Inset{Top: unit.Dp(10), Bottom: unit.Dp(5), Left: unit.Dp(2)}.Layout(gtx, func(gtx C) D {
-			l := material.Label(u.th, unit.Sp(11.5), name)
-			l.Font.Weight = font.Bold
-			l.Color = u.pal.Muted
-			return l.Layout(gtx)
+		return layout.Inset{Top: unit.Dp(16), Bottom: unit.Dp(6), Left: unit.Dp(2)}.Layout(gtx, func(gtx C) D {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx C) D {
+					l := material.Label(u.th, unit.Sp(13), name)
+					l.Font.Weight = font.SemiBold
+					l.Color = u.pal.Ink
+					return l.Layout(gtx)
+				}),
+				layout.Rigid(func(gtx C) D {
+					return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, u.wrapN(11, u.pal.Muted, sub, 2))
+				}),
+			)
 		})
 	}
 }
@@ -1003,9 +1030,10 @@ func (u *UI) valueSub(value layout.Widget, sub string) layout.Widget {
 				if sub == "" {
 					return D{}
 				}
-				// Two lines at most: the cover row's sub-line names three
-				// providers and what off means, and cut short it would not.
-				return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, u.wrapN(11, u.pal.Muted2, sub, 2))
+				// Three lines at most: the low-resolution row's sub-line
+				// says what the line is for and what the iPod draws, and
+				// cut short it would not.
+				return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, u.wrapN(11, u.pal.Muted2, sub, 3))
 			}),
 		)
 	}
@@ -1054,9 +1082,9 @@ func (u *UI) libraryRows(gtx C) D {
 		},
 		func(gtx C) D {
 			s := u.settings
-			return u.rowFrame(gtx, setDuplicates, func(gtx C) D {
+			return u.rowFrame(gtx, setDuplicates, u.valueSub(func(gtx C) D {
 				return u.setTick(gtx, &s.dupTick, setDupTick)
-			}, nil)
+			}, setDupSub), nil)
 		},
 	)
 }
@@ -1073,7 +1101,8 @@ func (u *UI) syncRows(gtx C) D {
 					layout.Rigid(u.valueSub(func(gtx C) D { return u.setTick(gtx, &s.verifyTick, setVerify) },
 						setVerifySub)),
 					layout.Rigid(layout.Spacer{Height: unit.Dp(4)}.Layout),
-					layout.Rigid(func(gtx C) D { return u.setTick(gtx, &s.ejectTick, setEject) }),
+					layout.Rigid(u.valueSub(func(gtx C) D { return u.setTick(gtx, &s.ejectTick, setEject) },
+						setEjectSub)),
 				)
 			}, nil)
 		},
@@ -1157,9 +1186,9 @@ func (u *UI) firmwareRows(gtx C) D {
 			}, u.keepNote()), nil)
 		},
 		func(gtx C) D {
-			return u.rowFrame(gtx, setUpdates, func(gtx C) D {
+			return u.rowFrame(gtx, setUpdates, u.valueSub(func(gtx C) D {
 				return u.radios(gtx, s.updClicks[:], updLabels, updSel)
-			}, nil)
+			}, setUpdatesSub), nil)
 		},
 		func(gtx C) D {
 			return u.rowFrame(gtx, setPreRow, u.valueSub(func(gtx C) D {
@@ -1190,9 +1219,9 @@ func (u *UI) appearanceRows(gtx C) D {
 					sel = i
 				}
 			}
-			return u.rowFrame(gtx, setThemeRow, func(gtx C) D {
+			return u.rowFrame(gtx, setThemeRow, u.valueSub(func(gtx C) D {
 				return u.radios(gtx, s.themeClicks[:], labels, sel)
-			}, nil)
+			}, setThemeSub), nil)
 		},
 		func(gtx C) D {
 			return u.rowFrame(gtx, setWindow, func(gtx C) D {

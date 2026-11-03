@@ -52,7 +52,7 @@ shows it within two seconds.
     *Skip* each one; untick the row to leave them all. Only a larger cover is ever used, every track
     of the album gets it, the next sync copies those tracks again, and *Undo* puts the old cover
     back. (A cover file in the folder is also used, without asking the internet, for an album that
-    has no cover at all.) The 600 is the *Small covers* picker in Settings… (Off, 300, 600 or
+    has no cover at all.) The 600 is the *Low-resolution covers* picker in Settings… (Off, 300, 600 or
     1000 px), or `core config set min_art_px 1000` from the command line.
   - **Duplicate albums** are two album folders with the same songs in them, so the iPod has them
     twice — say an album that is also Disc 2 of its deluxe edition. Each pair is shown side by side
@@ -69,7 +69,7 @@ shows it within two seconds.
 - **···** holds the rest: back up the firmware, flash an image file, read the iPod again, check for
   updates, show or copy the log, open the music folder, *Settings…* and About.
   *Settings…* is everything the app remembers, saved the moment you change it: the music folder,
-  the four *Fix all* ticks (the Fix tab's own), the small-cover line, the backup folder, *Use
+  the four *Fix all* ticks (the Fix tab's own), the low-resolution line, the backup folder, *Use
   ReplayGain*, the theme (System, Linen, Onyx — System follows Windows' dark-mode setting), and
   whether the window keeps its size and reopens on the last tab. It also holds the behaviour: a
   playlists folder, whether to look for covers on the internet (off, only a cover file in the
