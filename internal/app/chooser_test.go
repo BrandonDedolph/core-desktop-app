@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -196,7 +197,20 @@ func TestChooseButtonLabel(t *testing.T) {
 }
 
 func TestChooserStart(t *testing.T) {
-	dirs := map[string]bool{"/music": true, "/logs": true, "/last": true, "/home/you": true}
+	// The fixture's paths have to be absolute on the OS the test runs on:
+	// "/music" is not absolute on Windows, where it reads as a relative
+	// path and the start falls through to the last folder (the first run
+	// of this file's tests on Windows, 2026-11-03). abs is C:\music there.
+	abs := func(p string) string {
+		if p == "" || p == "relative" {
+			return p
+		}
+		if runtime.GOOS == "windows" {
+			return `C:` + filepath.FromSlash(p)
+		}
+		return p
+	}
+	dirs := map[string]bool{abs("/music"): true, abs("/logs"): true, abs("/last"): true, abs("/home/you"): true}
 	isDir := func(p string) bool { return dirs[p] }
 	for _, tc := range []struct{ field, last, home, want string }{
 		{"/music", "/last", "/home/you", "/music"},
@@ -206,9 +220,8 @@ func TestChooserStart(t *testing.T) {
 		{"relative", "", "/home/you", "/home/you"},
 		{"", "", "/nowhere", ""},
 	} {
-		if got := chooserStart(tc.field, tc.last, tc.home, isDir); got != filepath.FromSlash(tc.want) &&
-			got != tc.want {
-			t.Errorf("start(%q, %q, %q) = %q, want %q", tc.field, tc.last, tc.home, got, tc.want)
+		if got := chooserStart(abs(tc.field), abs(tc.last), abs(tc.home), isDir); got != abs(tc.want) {
+			t.Errorf("start(%q, %q, %q) = %q, want %q", tc.field, tc.last, tc.home, got, abs(tc.want))
 		}
 	}
 }
