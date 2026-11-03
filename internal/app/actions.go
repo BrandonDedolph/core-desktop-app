@@ -524,32 +524,23 @@ func (u *UI) startEject() {
 	})
 }
 
-// pick opens the OS folder/file dialog on its own goroutine — the
-// dialog is a separate process and can sit on screen for a minute, and
-// a UI goroutine waiting on it is a frozen window.
+// pick opens the chooser for a music folder (JobSync) or a firmware image
+// (JobFlash, JobInstall). Its answer is posted under mu and lands in drain
+// (newPath/pathFor) like it always has; only the thing that asks changed.
 func (u *UI) pick(for_ JobKind) {
-	go func() {
-		var (
-			path string
-			err  error
-		)
-		if for_ == JobSync {
-			path, err = PickFolder(context.Background())
-		} else {
-			path, err = PickFile(context.Background())
-		}
-		if err != nil {
-			u.Post(Event{Kind: EventLog, Text: "picker: " + err.Error()})
-			return
-		}
-		if path == "" {
-			return
-		}
+	k, field := chooseFirmwareKind, u.st.InstallFile
+	switch for_ {
+	case JobSync:
+		k, field = chooseMusicKind, u.sourceEd.Text()
+	case JobFlash:
+		field = u.flashEd.Text()
+	}
+	u.openChooser(k, field, func(path string) {
 		u.mu.Lock()
 		u.newPath, u.pathFor = path, for_
 		u.mu.Unlock()
 		u.invalidate()
-	}()
+	})
 }
 
 // --- the library manager -----------------------------------------------

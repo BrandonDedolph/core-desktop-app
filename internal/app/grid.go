@@ -736,7 +736,7 @@ func (u *UI) gridEmpty(gtx C) D {
 				layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
 				layout.Rigid(func(gtx C) D {
 					return u.buttonRow(gtx,
-						btn{&u.browseBtn, "Choose the music folder…", true, !u.st.Busy() && u.pickerOK},
+						btn{&u.browseBtn, "Choose the music folder…", true, !u.st.Busy()},
 						btn{&u.rescanBtn, "Rescan", false, !u.st.Busy() && u.st.Source != ""},
 					)
 				}),

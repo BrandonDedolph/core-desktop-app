@@ -77,7 +77,7 @@ func (u *UI) menuEnabled(i int) bool {
 	case menuBackup:
 		return !busy && u.st.Device.Found
 	case menuFlashFile:
-		return !busy && u.st.Device.Found && u.pickerOK
+		return !busy && u.st.Device.Found
 	case menuReread, menuCheck:
 		return !busy
 	case menuCopyLog:

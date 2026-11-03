@@ -343,8 +343,6 @@ type UI struct {
 	// no error, and read once by afterJob: Eject when a sync finishes.
 	syncWrote bool
 
-	pickerOK bool
-
 	// chooser is the open Browse… sheet (chooser.go), nil when closed; it
 	// sits over the album sheet and Settings, under the dialogs.
 	// newChooserDir is its listing on the way from the reading goroutine,
@@ -386,7 +384,6 @@ func NewUI(o Options) *UI {
 		cfg:        o.Config,
 		cfgPath:    o.ConfigPath,
 		invalidate: o.Invalidate,
-		pickerOK:   PickerAvailable(),
 		now:        time.Now,
 	}
 	if u.invalidate == nil {
@@ -1917,9 +1914,9 @@ func (u *UI) installPane(gtx C) D {
 					if f := u.st.InstallFile; f != "" {
 						bs = append(bs,
 							btn{&u.installFileBtn, "Install from " + shortName(fileBase(f), 28), false, !busy},
-							btn{&u.installPickBtn, "Choose another file…", false, !busy && u.pickerOK})
+							btn{&u.installPickBtn, "Choose another file…", false, !busy})
 					} else {
-						bs = append(bs, btn{&u.installFileBtn, "Install from a file…", false, !busy && u.pickerOK})
+						bs = append(bs, btn{&u.installFileBtn, "Install from a file…", false, !busy})
 					}
 					return u.buttonRow(gtx, bs...)
 				}),
