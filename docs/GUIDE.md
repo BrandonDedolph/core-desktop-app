@@ -67,7 +67,8 @@ shows it within two seconds.
   did, with *Copy* and *Clear*. When a job fails, its status line in the header says so and opens
   the log when you click it.
 - **···** holds the rest: back up the firmware, flash an image file, read the iPod again, check for
-  updates, show or copy the log, open the music folder, *Settings…* and About.
+  updates, show or copy the log, open the music folder, *Settings…* and About — and, when a newer
+  release of the app is out, *Update the app to vX.Y.Z* (see **Updating the app** below).
   *Settings…* is everything the app remembers, saved the moment you change it: the music folder,
   the four *Fix all* ticks (the Fix tab's own), the low-resolution line, the backup folder, *Use
   ReplayGain*, the theme (System, Linen, Onyx — System follows Windows' dark-mode setting), and
@@ -227,6 +228,27 @@ names its own build in the log at every start, and the check believes that line 
 then compares the build the iPod said it ran with the image it holds. An image written by an older
 `core` or another tool has no note, so with older firmware the build is reported as unknown (a WARN,
 not a FAIL).
+
+**Updating the app.** When the window starts it asks GitHub, quietly, whether a newer release of
+the app is out. If one is, About says so and **···** gains *Update the app to vX.Y.Z*. It asks once
+— "It downloads vX.Y.Z, replaces this program and core.exe beside it, and restarts." — and on *Yes*
+downloads this computer's `core-app` and `core` from the release (the header shows how far), checks
+each against the `.sha256` file published beside it, puts them in place of the running ones and
+starts the new app. On Windows a running program cannot be overwritten, only renamed, so the old
+files become `core-app.old.exe` and `core.old.exe` for a moment; the next start deletes them. A
+download that fails or does not match its checksum changes nothing, and the log says why. A folder
+you cannot write to (Program Files without an administrator) is refused before anything is
+downloaded; the log names the folder and the release page, where the files can be downloaded by
+hand. From a console:
+
+```
+core self-update --check         # is there a newer app, and what would it replace?
+core self-update                 # download, verify, replace core and core-app (asks first)
+core self-update --yes           # without asking
+```
+
+Releases made before this (v0.3.0 and older) carry no checksum files, so they cannot be installed
+this way: the update refuses a binary it cannot verify.
 
 **What is verified.** The iPod Video 5.5G 80 GB is the only model this firmware has ever booted,
 and the only one the app knows. Its flash path has been run on that device: the whole-partition
