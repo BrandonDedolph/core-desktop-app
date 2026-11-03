@@ -72,6 +72,13 @@ type Options struct {
 	// An album that is ALREADY in "Disc N" folders keeps them either way:
 	// this option is about splitting a flat one, not about flattening.
 	DiscFolders bool
+	// Albums, when set, limits the scan to these album folders (absolute):
+	// only their files are read, and only their files and sidecars are
+	// planned to move. Everything else in the tree is still seen — a name
+	// another album holds is still a collision — but not touched. Empty is
+	// the whole tree. The album sheet's Edit… uses it to rename the one
+	// album it just retagged without reading the other thousand.
+	Albums []string
 }
 
 // Event is one step of a scan, an apply or an undo.
@@ -317,7 +324,25 @@ func Scan(o Options) (*Plan, error) {
 	read := o.meta()
 	groups := map[string]*group{}
 	var order []string
-	dirs := sortedKeys(nodes)
+	only := map[string]bool{}
+	for _, a := range o.Albums {
+		if abs, err := filepath.Abs(a); err == nil {
+			only[foldKey(abs)] = true
+		}
+	}
+	wanted := func(d string) bool {
+		if len(only) == 0 {
+			return true
+		}
+		albumDir, _ := albumDirOf(root, d)
+		return only[foldKey(albumDir)]
+	}
+	var dirs []string
+	for _, d := range sortedKeys(nodes) {
+		if wanted(d) {
+			dirs = append(dirs, d)
+		}
+	}
 	total := 0
 	for _, d := range dirs {
 		total += len(nodes[d].flacs)

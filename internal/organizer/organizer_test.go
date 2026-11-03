@@ -865,3 +865,46 @@ func dump(m map[string]string) string {
 	}
 	return b.String()
 }
+
+// TestAlbumsLimitsTheScan: with Albums set, only that album's files are read
+// and only they are planned to move — the other misnamed album is left for
+// the Fix tab — and a name held by another album is still a collision.
+func TestAlbumsLimitsTheScan(t *testing.T) {
+	root := t.TempDir()
+	edited := filepath.Join(root, "Old Name - Talking Heads")
+	other := filepath.Join(root, "Other - Someone")
+	writeTrack(t, filepath.Join(edited, "01 - x.flac"), tagsFor("Remain in Light", "Talking Heads", "Born Under Punches", "1"))
+	writeTrack(t, filepath.Join(edited, "folder.art"), nil)
+	writeTrack(t, filepath.Join(other, "wrong.flac"), tagsFor("Other", "Someone", "Song", "1"))
+
+	var read []string
+	p := scanWith(t, Options{Root: root, Albums: []string{edited}, Meta: func(path string) (*flac.Meta, error) {
+		read = append(read, rel(root, path))
+		return flac.ReadFile(path)
+	}})
+	if len(read) != 1 || read[0] != filepath.Join("Old Name - Talking Heads", "01 - x.flac") {
+		t.Errorf("read %v: the scan read files outside the album", read)
+	}
+	got := moveMap(t, p)
+	want := map[string]string{
+		filepath.Join("Old Name - Talking Heads", "01 - x.flac"): filepath.Join("Remain in Light - Talking Heads",
+			"01 - Talking Heads - Born Under Punches.flac"),
+		filepath.Join("Old Name - Talking Heads", "folder.art"): filepath.Join("Remain in Light - Talking Heads", "folder.art"),
+	}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("moves %v\nwant %v", got, want)
+	}
+
+	// The whole tree, for contrast, moves the other album too.
+	if all := moveMap(t, scan(t, root)); len(all) != 3 {
+		t.Errorf("the unlimited scan: %v", all)
+	}
+
+	// A file of another album already at the target name is a collision.
+	writeTrack(t, filepath.Join(root, "Remain in Light - Talking Heads", "01 - Talking Heads - Born Under Punches.flac"),
+		tagsFor("Remain in Light", "Talking Heads", "Born Under Punches", "1"))
+	p = scanWith(t, Options{Root: root, Albums: []string{edited}})
+	if reason := attentionOn(p, root, filepath.Join("Old Name - Talking Heads", "01 - x.flac")); !strings.Contains(reason, "already there") {
+		t.Errorf("collision: %q, moves %v", reason, moveMap(t, p))
+	}
+}
