@@ -168,6 +168,28 @@ the new tags, journals it for *Undo*, and marks the album CHANGED. Every
 other field stays as it was: an editor that rewrites the whole tag block
 loses the ReplayGain and the cover.
 
+**Deviations (as built, 2026-11-03).**
+
+- *The renaming is FLAC-only.* The organizer has only ever read FLACs, so an
+  MP3 album's tags are written and journaled (and Undo puts them back) but its
+  file and folder names stay. Teaching the organizer MP3 is its own change: it
+  touches Fix, the duplicate check and the re-copy count.
+- *The organizer gained `Options.Albums`* so the rename after a save reads
+  that one album's files, not the whole library; names held by other albums
+  are still collisions.
+- *The journal is format 2 when it carries tags* (`tags`: every old value of
+  every touched key, aliases included). Format-1 journals — all of Fix's —
+  read and replay unchanged; an older build refuses a format-2 one rather
+  than putting the names back over tags it would not restore.
+- *What the MP3 writer refuses*, untouched: ID3v2.2 tags, whole-tag
+  unsynchronisation, a tag that runs past the file or whose frames do not add
+  up. A v2.3 extended header and a v2.4 footer are dropped when the tag is
+  rewritten. A new tag on an untagged MP3 is v2.3.
+- *A track number keeps its total*: changing 3 of "3/12" to 4 writes "4/12".
+- *A playing track is stopped* before its file is rewritten (Fix skips a
+  renamed one instead): on Windows an open file cannot be renamed, and the
+  sheet says it stopped it.
+
 ## L6 — the app updates itself
 
 *The ask: "the desktop app should also be able to update itself."*
