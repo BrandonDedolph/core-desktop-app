@@ -168,6 +168,37 @@ the new tags, journals it for *Undo*, and marks the album CHANGED. Every
 other field stays as it was: an editor that rewrites the whole tag block
 loses the ReplayGain and the cover.
 
+## L6 — the app updates itself
+
+*The ask: "the desktop app should also be able to update itself."*
+
+Today the launch check notices a newer app release and the ··· menu and
+About offer *Get the newer app…*, a link to the release page. The link
+becomes a job. **Update the app** downloads the release's `core-app.exe`
+and `core.exe` for this platform through the same `ghrelease` client the
+firmware update uses (its checksum file verified the same way), into the
+app's cache folder, then swaps them in: on Windows a running executable
+cannot be overwritten but it can be renamed, so the job renames the running
+`core-app.exe` to `core-app.old.exe`, moves the new one into place, does the
+same for `core.exe` beside it, and relaunches; the new app deletes the
+`.old` files on its next start. On Linux and macOS it is a plain replace and
+relaunch. A failed download or a checksum that does not match leaves
+everything as it was and says so in the log. The CLI gets `core self-update`
+with the same steps and `--check` to only say. Not in scope: an installer,
+a service, or updating an app that was not started from a writable folder
+(Program Files without elevation): that case says where the release is and
+stops, which is today's behaviour.
+
+## Decisions taken 2026-11-03
+
+- The bar says the iPod's name alone; the model is the Summary tab's; the
+  title bar always says Core (option A of the header proposals; PR #8).
+- Artist pictures: the mosaic is the default; Deezer stays an opt-in tick
+  until the owner decides on its terms.
+- The iPod gained a Daylight Saving setting and keeps standard time; the
+  app's stamp carries the host's daylight state (core-firmware PR #53, app
+  PR #9).
+
 ## Order
 
 L2 first (it is the front door and it reuses D1's chooser and the Fix
