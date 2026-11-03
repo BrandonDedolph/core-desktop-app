@@ -437,3 +437,21 @@ func colorDepth(m color.Model) (depth, colors uint32) {
 		return 24, 0
 	}
 }
+
+// AudioOffset is where the audio frames of the FLAC at path begin: the
+// marker plus every metadata block. Everything before it is what the
+// writers in this file change; everything from it on they never touch, which
+// is what lets a caller keep only the metadata of a file it is about to
+// write a picture into and still rebuild the original byte for byte.
+func AudioOffset(path string) (int64, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	c, err := readChain(f)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", path, err)
+	}
+	return c.audioOff, nil
+}

@@ -212,6 +212,17 @@ func canonicalFile(number, artist, title string) string {
 		library.FatSafe(enDash(artist)), library.FatSafe(title))
 }
 
+// CanonicalNumbered is the file name with the number already rendered ("05",
+// or "2-05" in a flat multi-disc album) and the extension the file has
+// (".flac", ".mp3"): the one rule for a file arriving from outside the tree,
+// which librarian's Add names before it copies it in.
+func CanonicalNumbered(number, artist, title, ext string) string {
+	return strings.TrimSuffix(canonicalFile(number, artist, title), ".flac") + ext
+}
+
+// TrackNumber is the "NN" CanonicalFile starts with, at least two digits.
+func TrackNumber(track, width int) string { return trackText(track, width) }
+
 func trackText(track, width int) string {
 	if width < 2 {
 		width = 2

@@ -74,6 +74,7 @@ const (
 	JobInspect = "inspect"
 	JobArt     = "art"
 	JobFix     = "fix"
+	JobAdd     = "add"
 )
 
 // EventKind is what an Event says. The two kinds line up one for one with
@@ -157,6 +158,10 @@ type Options struct {
 	// TrashDir overrides where RemoveDuplicate moves an album: by default
 	// <parent of the music folder>/.core-trash/<timestamp>/.
 	TrashDir string
+	// After is Add's Choices.After: the undo journal of the changes made
+	// before this one in the same session, which Add's journal names so
+	// one Undo takes both back, newest first.
+	After string
 }
 
 // DefaultMinArtPx is the low-resolution line: 600 px on the shorter side. The
@@ -541,7 +546,12 @@ type album struct {
 // looks one level down, at folders whose name has a " - " in it) on purpose:
 // an album sitting in Downloads\X\ is invisible to the index today and is
 // exactly the thing this report exists to point at.
-func albumsIn(root string) ([]album, error) {
+func albumsIn(root string) ([]album, error) { return albumsInExt(root, ".flac") }
+
+// albumsInExt is albumsIn for any of the extensions given (matched as
+// library matches them: case-sensitively). Add music… compares a new album
+// with the whole library, MP3 albums included; the Fix tab is FLAC only.
+func albumsInExt(root string, exts ...string) ([]album, error) {
 	flacs := map[string][]string{}
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -553,7 +563,7 @@ func albumsIn(root string) ([]album, error) {
 		base := d.Name()
 		// A leading dot hides a file from library's glob, and the extension
 		// match is case-sensitive there too: ".FLAC" is not a track.
-		if strings.HasPrefix(base, ".") || !strings.HasSuffix(base, ".flac") {
+		if strings.HasPrefix(base, ".") || !hasAnySuffix(base, exts) {
 			return nil
 		}
 		dir := filepath.Dir(p)
@@ -605,6 +615,15 @@ func albumsIn(root string) ([]album, error) {
 		}
 	}
 	return out, nil
+}
+
+func hasAnySuffix(s string, exts []string) bool {
+	for _, e := range exts {
+		if strings.HasSuffix(s, e) {
+			return true
+		}
+	}
+	return false
 }
 
 // visibleToLibrary reports whether library.ScanTree can see this file today:

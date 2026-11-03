@@ -357,12 +357,13 @@ func TestAnOldJournalStillReplays(t *testing.T) {
 	}
 
 	// A format this build does not know is refused, not half-replayed.
-	future := strings.Replace(old, `"format": 1`, `"format": 3`, 1)
+	// (3 is Add music…'s.)
+	future := strings.Replace(old, `"format": 1`, `"format": 4`, 1)
 	if err := os.WriteFile(jpath, []byte(future), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Undo(context.Background(), jpath, Options{JournalDir: jdir}); err == nil {
-		t.Error("a format 3 journal was accepted")
+		t.Error("a format 4 journal was accepted")
 	}
 }
 
