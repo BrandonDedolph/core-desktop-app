@@ -168,6 +168,44 @@ type FileOp struct {
 	Size    int64     `json:"size"`
 	ModTime time.Time `json:"mtime"`
 	Reason  string    `json:"reason"`
+	// Why is Reason as a value the window can count: the same decision,
+	// without the numbers that make Reason worth reading.
+	Why CopyWhy `json:"why"`
+}
+
+// CopyWhy is why a track is in the list it is in. It is set beside Reason,
+// wherever Reason is, so the two can never disagree about what was decided.
+type CopyWhy string
+
+// The reasons. A copy is WhyNew, WhySize, WhyTime, WhyContent or
+// WhyUnreadable; a skip (and the file a rename moves) is WhySame or
+// WhyHourShift.
+const (
+	// WhyNew: there is no file under that name on the device.
+	WhyNew CopyWhy = "new"
+	// WhySize: the device's copy is a different size.
+	WhySize CopyWhy = "size"
+	// WhyTime: same size, but the source was modified after the copy.
+	WhyTime CopyWhy = "time"
+	// WhyContent: same size, different bytes (--verify).
+	WhyContent CopyWhy = "content"
+	// WhyUnreadable: the source could not be stat'ed; Execute reports it.
+	WhyUnreadable CopyWhy = "unreadable"
+	// WhySame: the device's copy is this file (size and time, or content).
+	WhySame CopyWhy = "same"
+	// WhyHourShift: same size, the time exactly one hour out — a
+	// daylight-saving change read back off the iPod's FAT volume — so it
+	// is the same file.
+	WhyHourShift CopyWhy = "hour-shift"
+)
+
+// Copies reports whether a track with this reason is sent to the device.
+func (w CopyWhy) Copies() bool {
+	switch w {
+	case WhyNew, WhySize, WhyTime, WhyContent, WhyUnreadable:
+		return true
+	}
+	return false
 }
 
 // ArtOp is one album's pair of sidecars.
@@ -378,7 +416,7 @@ func MakePlan(o Options, scan *library.Scan) (*Plan, error) {
 				// The scan read this file minutes ago; if it is gone now the
 				// user moved it mid-sync. Copy it and let Execute report the
 				// real error rather than guessing here.
-				op.Reason = "source unreadable: " + err.Error()
+				op.Reason, op.Why = "source unreadable: "+err.Error(), WhyUnreadable
 				p.Copy = append(p.Copy, op)
 				continue
 			}
@@ -386,11 +424,11 @@ func MakePlan(o Options, scan *library.Scan) (*Plan, error) {
 
 			di, derr := os.Stat(dst)
 			if derr == nil {
-				same, why, err := unchanged(t.SrcPath, dst, si, di, o.Verify)
+				same, cw, why, err := unchanged(t.SrcPath, dst, si, di, o.Verify)
 				if err != nil {
 					return nil, err
 				}
-				op.Reason = why
+				op.Reason, op.Why = why, cw
 				if same {
 					p.Skip = append(p.Skip, op)
 					p.SkipBytes += op.Size
@@ -408,17 +446,18 @@ func MakePlan(o Options, scan *library.Scan) (*Plan, error) {
 			if old, ok := caseMatch(existing, t.DeviceName, claimed); ok {
 				oldPath := filepath.Join(albumDir, old)
 				if oi, err := os.Stat(oldPath); err == nil {
-					if same, _, err := unchanged(t.SrcPath, oldPath, si, oi, o.Verify); err == nil && same {
+					if same, cw, _, err := unchanged(t.SrcPath, oldPath, si, oi, o.Verify); err == nil && same {
 						claimed[old] = true
 						keep.add(oldPath) // do not prune what we are about to move
 						op.Src = oldPath
 						op.Reason = fmt.Sprintf("already on the device as %q", old)
+						op.Why = cw
 						p.Rename = append(p.Rename, op)
 						continue
 					}
 				}
 			}
-			op.Reason = "not on the device"
+			op.Reason, op.Why = "not on the device", WhyNew
 			p.Copy = append(p.Copy, op)
 			p.CopyBytes += op.Size
 		}
@@ -565,33 +604,34 @@ func sidecarsStale(dir, srcFLAC string) bool {
 
 // unchanged answers "is the file already on the device the one we would send?"
 // — by size and mtime normally (FAT's two-second resolution is the slack), by
-// content hash under --verify. The string is the reason, for the plan.
-func unchanged(src, dst string, si, di os.FileInfo, verify bool) (bool, string, error) {
+// content hash under --verify. The CopyWhy is the decision as a value, the
+// string the reason, for the plan.
+func unchanged(src, dst string, si, di os.FileInfo, verify bool) (bool, CopyWhy, string, error) {
 	if si.Size() != di.Size() {
-		return false, fmt.Sprintf("size differs (%d -> %d)", di.Size(), si.Size()), nil
+		return false, WhySize, fmt.Sprintf("size differs (%d -> %d)", di.Size(), si.Size()), nil
 	}
 	if verify {
 		same, err := sameContent(src, dst)
 		if err != nil {
-			return false, "", err
+			return false, "", "", err
 		}
 		if !same {
-			return false, "content differs (--verify)", nil
+			return false, WhyContent, "content differs (--verify)", nil
 		}
-		return true, "content identical (--verify)", nil
+		return true, WhySame, "content identical (--verify)", nil
 	}
 	same, shifted := sameTime(si.ModTime(), di.ModTime())
 	switch {
 	case shifted:
-		return true, "same size; the time differs by one hour, a daylight-saving shift on the iPod's FAT volume", nil
+		return true, WhyHourShift, "same size; the time differs by one hour, a daylight-saving shift on the iPod's FAT volume", nil
 	case same:
-		return true, "same size and time", nil
+		return true, WhySame, "same size and time", nil
 	}
 	d := si.ModTime().Sub(di.ModTime())
 	if d < 0 {
-		return false, fmt.Sprintf("the copy on the device is %s newer than the source", (-d).Round(time.Second)), nil
+		return false, WhyTime, fmt.Sprintf("the copy on the device is %s newer than the source", (-d).Round(time.Second)), nil
 	}
-	return false, fmt.Sprintf("modified %s after the copy on the device", d.Round(time.Second)), nil
+	return false, WhyTime, fmt.Sprintf("modified %s after the copy on the device", d.Round(time.Second)), nil
 }
 
 // sameContent compares two files by SHA-256. Content, not a timestamp, is the
