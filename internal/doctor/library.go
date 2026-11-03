@@ -22,13 +22,12 @@ import (
 // right. It is what the window's Summary tab shows and what its Repair button
 // acts on.
 //
-// Every finding says which of three things fixes it, because the window's
-// one rule is that it never patches the iPod by hand: the repair is the same
-// write a sync is. So a finding is either something a plain sync puts right
-// (a song missing from its folder, a device file the iPod refuses), something
-// a sync with the covers re-rendered puts right (a missing or invalid
-// sidecar), or something no sync does (a library over the iPod's caps, a
-// torn On-The-Go save), in which case it says what does.
+// Every finding says which of two things fixes it, because the window's one
+// rule is that it never patches the iPod by hand: the repair is the same
+// write a sync is. So a finding is either something a sync puts right (a
+// song missing from its folder, a missing or invalid sidecar, a device file
+// the iPod refuses) or something no sync does (a library over the iPod's
+// caps, a torn On-The-Go save), in which case it says what does.
 //
 // Cost: one directory listing per album folder, one 12-byte read of each
 // sidecar, the index (already read by CheckVolume) and the playlists. No song
@@ -37,27 +36,23 @@ import (
 // Repair is what puts a finding right.
 type Repair int
 
-// The three answers, in increasing order of how much a repair writes: a
-// report's Repair is the largest of its findings'.
+// The two answers: a report's Repair is the largest of its findings'. There
+// is no "sync with every cover re-rendered": a plain sync already renders
+// the sidecars that are missing or invalid, which is every cover finding
+// these checks can raise, and `--art-refresh` would only add the other
+// hundred albums to the preview's count.
 const (
 	// RepairNone: nothing a sync does. The finding's Fix says what does.
 	RepairNone Repair = iota
 	// RepairPlain: a sync.
 	RepairPlain
-	// RepairArt: a sync with every cover re-rendered (`core sync
-	// --art-refresh`).
-	RepairArt
 )
 
 func (r Repair) String() string {
-	switch r {
-	case RepairPlain:
+	if r == RepairPlain {
 		return "sync"
-	case RepairArt:
-		return "sync with covers re-rendered"
-	default:
-		return "none"
 	}
+	return "none"
 }
 
 // Finding is one problem: the sentence, what fixes it, and how many things it
@@ -172,7 +167,7 @@ func LibraryChecks(volume string) LibraryReport {
 	}
 	if n := len(noCover); n > 0 {
 		add(Finding{Text: count(n, "album has", "albums have") + " no cover on the iPod",
-			Repair: RepairArt, N: n, Names: firstN(noCover),
+			Repair: RepairPlain, N: n, Names: firstN(noCover),
 			Fix: "a sync renders the covers again from your music folder; an album with no cover there gets one on the Fix tab"})
 	}
 

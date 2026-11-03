@@ -204,12 +204,11 @@ func (u *UI) noteSyncWrote(err error) {
 // Cancel — or Close on "Everything is on the iPod" — ends the job with
 // nothing written. The plan's lines go to the log as well, each with its
 // why.
-func (u *UI) startSyncPreview() { u.syncPreview(false, nil) }
+func (u *UI) startSyncPreview() { u.syncPreview(nil) }
 
-// startRepair is the Summary tab's Repair: the sync the iPod's library
-// findings call for — with every cover re-rendered when a cover is one of
-// them — through the same preview, the same checks and the same button as
-// any other sync. The window never patches the iPod by hand; the repair is
+// startRepair is the Summary tab's Repair: a sync, through the same
+// preview, the same checks and the same button as any other sync (a sync
+// renders the covers that are missing and copies the songs that are). The window never patches the iPod by hand; the repair is
 // the write a sync is. The findings go to the log first, with the names
 // behind them.
 func (u *UI) startRepair() {
@@ -232,14 +231,12 @@ func (u *UI) startRepair() {
 		}
 		why = append(why, line)
 	}
-	u.syncPreview(lib.Repair == doctor.RepairArt, why)
+	u.syncPreview(why)
 }
 
-// syncPreview is startSyncPreview with the two things a repair adds: the
-// covers re-rendered (artRefresh, on the plan and on the sync alike, so the
-// preview's "Covers to render" is what the sync will do) and the lines that
-// say why, logged before the plan.
-func (u *UI) syncPreview(artRefresh bool, why []string) {
+// syncPreview is startSyncPreview with the one thing a repair adds: the
+// lines that say why, logged before the plan.
+func (u *UI) syncPreview(why []string) {
 	src := strings.TrimSpace(u.sourceEd.Text())
 	dst := u.st.Device.Volume
 	tooOld := u.st.FirmwareTooOld()
@@ -255,7 +252,6 @@ func (u *UI) syncPreview(artRefresh bool, why []string) {
 			return fmt.Errorf("no iPod volume: plug the iPod in (disk mode: Select+Play) — this window finds it on its own")
 		}
 		o := set.options(src, dst, emit)
-		o.ArtRefresh = artRefresh
 		dry := o
 		dry.DryRun = true
 		emit(Event{Kind: EventProgress, Text: "working out what to copy", Pct: -1})

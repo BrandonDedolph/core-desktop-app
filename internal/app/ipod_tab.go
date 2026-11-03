@@ -212,8 +212,6 @@ func (u *UI) libraryRow() ipodRow {
 	case doctor.RepairNone:
 		r.sub = "a sync cannot fix " + either(n == 1, "this", "these") + "; each line says what does"
 		return r
-	case doctor.RepairArt:
-		r.sub = "Repair is a sync that renders every cover again; the preview shows what it will write first"
 	default:
 		r.sub = "Repair is a sync: it writes what your music folder has, and the preview shows it first"
 	}

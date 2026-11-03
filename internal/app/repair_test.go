@@ -12,11 +12,11 @@ import (
 )
 
 // The Summary tab's Library row is the doctor's library checks in words, and
-// its Repair is a sync through the preview — with the covers re-rendered
-// exactly when a cover is what is wrong.
+// its Repair is a sync through the preview: the same write a sync is,
+// which renders the covers that are missing and copies the songs that are.
 
 var (
-	coverFinding = doctor.Finding{Text: "3 albums have no cover on the iPod", Repair: doctor.RepairArt, N: 3,
+	coverFinding = doctor.Finding{Text: "3 albums have no cover on the iPod", Repair: doctor.RepairPlain, N: 3,
 		Names: []string{"A - B", "C - D", "E - F"}, Fix: "a sync renders the covers again"}
 	songFinding = doctor.Finding{Text: "2 songs in the index are not on the iPod", Repair: doctor.RepairPlain, N: 2,
 		Names: []string{"A - B/01. X.flac", "A - B/02. Y.flac"}, Fix: "a sync copies them back"}
@@ -65,8 +65,8 @@ func TestLibraryRowFindings(t *testing.T) {
 	if strings.Join(r.lines, "|") != coverFinding.Text+"|"+songFinding.Text {
 		t.Errorf("lines = %q", r.lines)
 	}
-	if !strings.Contains(r.sub, "renders every cover again") {
-		t.Errorf("sub = %q — the repair re-renders covers and must say so", r.sub)
+	if !strings.Contains(r.sub, "Repair is a sync") || !strings.Contains(r.sub, "preview") {
+		t.Errorf("sub = %q — it must say the repair is a sync shown in the preview first", r.sub)
 	}
 	if strings.Join(actionLabels(r), ",") != "Repair" || !r.actions[0].enabled {
 		t.Errorf("actions = %+v", r.actions)
@@ -153,9 +153,11 @@ func TestRepairIsASyncThroughThePreview(t *testing.T) {
 	if len(calls) != 2 || !calls[0].DryRun || calls[1].DryRun {
 		t.Fatalf("sync calls = %+v — the plan, then the sync", calls)
 	}
+	// A sync renders the covers that are missing: never --art-refresh,
+	// which would re-render the other hundred albums too.
 	for i, o := range calls {
-		if !o.ArtRefresh {
-			t.Errorf("call %d without ArtRefresh: the covers are the finding", i)
+		if o.ArtRefresh {
+			t.Errorf("call %d re-renders every cover; a plain sync renders the three that are missing", i)
 		}
 	}
 	var card []string

@@ -196,7 +196,7 @@ func TestLibraryChecksCovers(t *testing.T) {
 	mkfile(t, musicPath(root, "Scans", "notes.txt"), []byte("x"))
 
 	f := only(t, LibraryChecks(root))
-	if f.Text != "2 albums have no cover on the iPod" || f.Repair != RepairArt || f.N != 2 ||
+	if f.Text != "2 albums have no cover on the iPod" || f.Repair != RepairPlain || f.N != 2 ||
 		strings.Join(f.Names, "|") != "Artist - One|Artist - Two" {
 		t.Errorf("finding = %+v", f)
 	}
@@ -327,14 +327,14 @@ func TestLibraryChecksWhatASyncCannotFix(t *testing.T) {
 	}
 }
 
-// Covers and a missing song together are ONE repair: the sync that
-// re-renders the covers also copies the song.
+// Covers and a missing song together are ONE repair, a sync: it renders
+// the missing covers and copies the song.
 func TestLibraryReportRepairIsTheLargest(t *testing.T) {
 	root := cleanVolume(t)
 	_ = os.Remove(musicPath(root, "Artist - Two", coreart.ArtName))
 	_ = os.Remove(musicPath(root, "Artist - One", "01. A.flac"))
 	rep := LibraryChecks(root)
-	if rep.Repair() != RepairArt {
+	if rep.Repair() != RepairPlain {
 		t.Errorf("Repair = %v, findings %q", rep.Repair(), texts(rep.Findings))
 	}
 }
