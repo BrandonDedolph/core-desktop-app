@@ -56,6 +56,7 @@ func Root() *cobra.Command {
 		newArtCmd(),
 		newOrganizeCmd(),
 		newFixCmd(),
+		newAddCmd(),
 		newSyncCmd(),
 		newEjectCmd(),
 		newNameCmd(),

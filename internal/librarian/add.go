@@ -1403,3 +1403,14 @@ func sortedKeysOf(m map[string]int) []string {
 	sort.Strings(out)
 	return out
 }
+
+// FormatsText is the formats line: "FLAC 40, MP3 12, M4A 9", most first.
+func (p *AddPlan) FormatsText() string {
+	keys := sortedKeysOf(p.Formats)
+	sort.SliceStable(keys, func(i, j int) bool { return p.Formats[keys[i]] > p.Formats[keys[j]] })
+	var parts []string
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s %d", k, p.Formats[k]))
+	}
+	return strings.Join(parts, ", ")
+}
