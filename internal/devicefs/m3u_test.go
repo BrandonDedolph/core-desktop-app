@@ -213,3 +213,27 @@ func first(s string, n int) string {
 	}
 	return s[:n]
 }
+
+// ResolveM3ULine reads a line the way the firmware does, whoever wrote it:
+// this package's absolute form, a Windows player's drive letter and
+// backslashes, the pop form, and the bare relative line that the firmware
+// resolves against Music/Playlists (and which therefore names nothing a sync
+// wrote).
+func TestResolveM3ULine(t *testing.T) {
+	for line, want := range map[string]string{
+		"/Music/A - B/01. T.flac":        "Music/A - B/01. T.flac",
+		`D:\Music\A - B\01. T.flac`:      "Music/A - B/01. T.flac",
+		"../A - B/01. T.flac\r":          "Music/A - B/01. T.flac",
+		"A - B/01. T.flac":               "Music/Playlists/A - B/01. T.flac",
+		"  /Music/./A - B//01. T.flac  ": "Music/A - B/01. T.flac",
+	} {
+		if got, ok := ResolveM3ULine(line); !ok || got != want {
+			t.Errorf("%q → %q, %v; want %q", line, got, ok, want)
+		}
+	}
+	for _, line := range []string{"", "   ", "#EXTM3U", "#EXTINF:1,x", "/../../x.flac", "/"} {
+		if got, ok := ResolveM3ULine(line); ok {
+			t.Errorf("%q resolved to %q; the firmware takes nothing from it", line, got)
+		}
+	}
+}

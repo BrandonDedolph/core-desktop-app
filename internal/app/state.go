@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/BrandonDedolph/core-desktop-app/internal/artfetch"
+	"github.com/BrandonDedolph/core-desktop-app/internal/doctor"
 	"github.com/BrandonDedolph/core-desktop-app/internal/fwpart"
 	"github.com/BrandonDedolph/core-desktop-app/internal/librarian"
 	"github.com/BrandonDedolph/core-desktop-app/internal/organizer"
@@ -289,6 +290,11 @@ type Library struct {
 	IndexBytes            int64
 	ConfigValid, LogValid bool
 	Note                  string
+	// Findings are what is wrong with the library on the iPod, in words
+	// (doctor.LibraryChecks), and Repair is what the Summary tab's Repair
+	// button runs for them. No findings is a library with nothing wrong.
+	Findings []doctor.Finding
+	Repair   doctor.Repair
 }
 
 // Release is what `Check` filled in.

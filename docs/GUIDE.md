@@ -60,9 +60,17 @@ shows it within two seconds.
     music folder (not the Recycle Bin), and *Undo* moves it back. If the other album has songs the
     one you keep does not, the button warns and asks a second time. Empty `.core-trash` yourself
     when you are sure. *Fix all* never touches duplicates.
-- **Summary** is this iPod in five rows — Name (*Rename*), Firmware (*Update* / *Check*), Storage,
-  Hardware, Backups (*Show folder*, *Back up now*) — and an *Advanced* section with the disk path,
-  the partition entry, the device files and *Flash this image* for an image file of your own.
+- **Summary** is this iPod in six rows — Name (*Rename*), Firmware (*Update* / *Check*), Storage,
+  Library on the iPod (*Repair*), Hardware, Backups (*Show folder*, *Back up now*) — and an
+  *Advanced* section with the disk path, the partition entry, the device files and *Flash this
+  image* for an image file of your own.
+  **Library on the iPod** is the library as the iPod will read it: "907 songs · 101 albums · 17
+  genres · index valid" when nothing is wrong, or what is — an album with no cover, a song in the
+  index that is not on the iPod, a playlist entry that points at nothing, a settings file or log
+  the iPod would refuse — one line each, up to four. *Repair* is a sync, through the same preview
+  as *Sync N albums* (and with every cover rendered again when a cover is one of the problems):
+  the window never patches the iPod by hand. A problem no sync fixes — a torn On-The-Go save, a
+  library over the iPod's limits — has no *Repair* and its line says what does fix it.
 - **The log** is behind **···** → *Show the log* (or Ctrl+L): a drawer with everything the window
   did, with *Copy* and *Clear*. When a job fails, its status line in the header says so and opens
   the log when you click it.

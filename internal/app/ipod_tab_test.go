@@ -47,9 +47,13 @@ func TestIPodRowsForTheDemo(t *testing.T) {
 	}
 
 	st := rowByLabel(t, u, "Storage")
-	if st.value != "51.2 GB free of 74.5 GB" || st.sub != "928 songs · 101 albums · 17 genres on the iPod" ||
-		len(st.actions) != 0 {
+	if st.value != "51.2 GB free of 74.5 GB" || st.sub != "" || len(st.actions) != 0 {
 		t.Errorf("Storage row = %+v", st)
+	}
+	lr := rowByLabel(t, u, "Library on the iPod")
+	if lr.value != "928 songs · 101 albums · 17 genres · index valid" || lr.warn != "" ||
+		len(lr.lines) != 0 || len(lr.actions) != 0 {
+		t.Errorf("Library row = %+v", lr)
 	}
 
 	hw := rowByLabel(t, u, "Hardware")

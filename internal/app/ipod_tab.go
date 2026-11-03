@@ -15,6 +15,8 @@ import (
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
+
+	"github.com/BrandonDedolph/core-desktop-app/internal/doctor"
 )
 
 // The iPod tab: this iPod, in rows a person can read — its name, its
@@ -31,7 +33,10 @@ type ipodRow struct {
 	label, value, sub string
 	// warn is a tail drawn after value in the warning colour
 	// ("UNTESTED"); it is empty for everything that is fine.
-	warn    string
+	warn string
+	// lines are drawn between the value and the sub, one each: the
+	// Library row's findings.
+	lines   []string
 	actions []btn
 }
 
@@ -126,13 +131,14 @@ func (u *UI) ipodRows() []ipodRow {
 		tv, tu := humanBinary(d.Capacity)
 		st.value = fv + " " + fu + " free of " + tv + " " + tu
 	}
-	switch {
-	case lib.Present:
-		st.sub = fmt.Sprintf("%d songs · %d albums · %d genres on the iPod", lib.Songs, lib.Albums, lib.Genres)
-	default:
+	// The counts are the Library row's when there is a library.
+	if !lib.Present {
 		st.sub = "no library on the iPod yet — the first sync writes one"
 	}
 	rows = append(rows, st)
+	if lib.Present {
+		rows = append(rows, u.libraryRow())
+	}
 
 	hw := ipodRow{label: "Hardware", value: modelWords(d.Model) + " · "}
 	if d.Tested {
@@ -164,6 +170,64 @@ func (u *UI) ipodRows() []ipodRow {
 	}
 	rows = append(rows, b)
 	return rows
+}
+
+// libraryLines is how many findings the Library row lists before "… and N
+// more"; the log has every one.
+const libraryLines = 4
+
+// libraryRow is the library on the iPod as the doctor's library checks found
+// it: the counts and "index valid" when nothing is wrong, else the findings,
+// one line each, and Repair — the sync they call for, through the preview —
+// when a sync fixes any of them. A finding no sync fixes carries what does on
+// its own line, and alone it gets no button.
+func (u *UI) libraryRow() ipodRow {
+	lib := u.st.Library
+	r := ipodRow{label: "Library on the iPod"}
+	counts := fmt.Sprintf("%d song%s · %d album%s · %d genre%s", lib.Songs, plural(lib.Songs),
+		lib.Albums, plural(lib.Albums), lib.Genres, plural(lib.Genres))
+	if len(lib.Findings) == 0 {
+		r.value = counts + " · index valid"
+		r.sub = "every song, cover and playlist entry is in place"
+		return r
+	}
+	if lib.Songs > 0 {
+		r.value = counts + " · "
+	}
+	n := len(lib.Findings)
+	r.warn = fmt.Sprintf("%d problem%s", n, plural(n))
+	for i, f := range lib.Findings {
+		if i == libraryLines && n > libraryLines+1 {
+			r.lines = append(r.lines, fmt.Sprintf("… and %d more", n-libraryLines))
+			break
+		}
+		line := f.Text
+		if f.Repair == doctor.RepairNone {
+			line += " — " + f.Fix
+		}
+		r.lines = append(r.lines, line)
+	}
+	src := strings.TrimSpace(u.st.Source)
+	switch lib.Repair {
+	case doctor.RepairNone:
+		r.sub = "a sync cannot fix " + either(n == 1, "this", "these") + "; each line says what does"
+		return r
+	default:
+		r.sub = "Repair is a sync: it writes what your music folder has, and the preview shows it first"
+	}
+	if src == "" {
+		r.sub += " · choose your music folder on the Fix tab first"
+	}
+	r.actions = []btn{{&u.repairBtn, "Repair", false, !u.st.Busy() && u.st.Device.Volume != "" && src != ""}}
+	return r
+}
+
+// either is a ternary for words.
+func either(c bool, a, b string) string {
+	if c {
+		return a
+	}
+	return b
 }
 
 // modelRE splits "iPod Video 5.5G 80 GB" into the model and its size.
@@ -270,6 +334,18 @@ func (u *UI) rowValue(gtx C, r ipodRow) D {
 					return l.Layout(gtx)
 				}),
 			)
+		}),
+		layout.Rigid(func(gtx C) D {
+			if len(r.lines) == 0 {
+				return D{}
+			}
+			var ls []layout.FlexChild
+			for _, l := range r.lines {
+				ls = append(ls, layout.Rigid(u.wrap(12, u.pal.Ink, l)))
+			}
+			return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2)}.Layout(gtx, func(gtx C) D {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx, ls...)
+			})
 		}),
 		layout.Rigid(func(gtx C) D {
 			if r.sub == "" {
@@ -495,6 +571,7 @@ func (u *UI) ipodStrings() []string {
 	var out []string
 	for _, r := range u.ipodRows() {
 		out = append(out, r.label, r.value, r.sub, r.warn)
+		out = append(out, r.lines...)
 		for _, b := range r.actions {
 			out = append(out, b.label)
 		}
