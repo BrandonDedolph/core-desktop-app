@@ -15,7 +15,7 @@ var forbidden = []string{
 
 // frontStrings is every string a canned state puts on the front of the
 // window: the header (both lines, the primary, the title), the tab names and
-// the tab row's note, the menu, the Settings sheet, the job names, the Install screen's text and
+// the tab row's note, the menu, the Settings sheet, the chooser, the job names, the Install screen's text and
 // buttons, the Library preview's overflow line, and the sync preview.
 func frontStrings(u *UI) []string {
 	name, model := u.headName()
@@ -35,6 +35,7 @@ func frontStrings(u *UI) []string {
 	}
 	out = append(out, menuLabels[:]...)
 	out = append(out, u.settingsStrings()...)
+	out = append(out, chooserStrings()...)
 	for k := JobNone; k <= JobUndoFix; k++ {
 		out = append(out, k.String())
 	}

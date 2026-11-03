@@ -13,7 +13,7 @@ import (
 // DialogKinds are the dialogs `core-app --screenshot --dialog KIND` can
 // put on screen, for review. They are drawn and nothing else: a canned
 // dialog has no job behind it, so nothing can be confirmed through one.
-var DialogKinds = []string{"write", "holding", "remove", "about", "album", "preview", "settings"}
+var DialogKinds = []string{"write", "holding", "remove", "about", "album", "preview", "settings", "chooser"}
 
 // cannedDialog builds one of DialogKinds against the state's device.
 func cannedDialog(u *UI, kind string) error {
@@ -63,6 +63,9 @@ func cannedDialog(u *UI, kind string) error {
 		return nil
 	case "settings":
 		u.openSettings()
+		return nil
+	case "chooser":
+		u.cannedChooser()
 		return nil
 	case "preview":
 		u.dlg = cannedPreview(u)
@@ -151,4 +154,24 @@ func cannedPlan(albums []Album) *syncer.Plan {
 	}
 	p.PruneBytes = 1_242_000_000
 	return p
+}
+
+// cannedChooser is the music folder's Browse… open on a fixed, made-up
+// listing — a canned state reads no disk — drawn as Windows draws it, with
+// one album folder selected so the button says what it would choose.
+func (u *UI) cannedChooser() {
+	c := newChooser(chooseMusicKind, "windows", `C:\Users\you`)
+	at := `C:\Users\you\Music`
+	names := []string{"Playlists", "Brian Eno - Another Green World", "David Bowie - Low",
+		"Kate Bush - Hounds of Love", "Talking Heads - Remain in Light", "Joni Mitchell - Blue",
+		"Radiohead - In Rainbows", "Massive Attack - Mezzanine", "Portishead - Dummy",
+		"Stereolab - Dots and Loops", "Television - Marquee Moon", "The Cure - Disintegration"}
+	d := &chooserDir{at: at}
+	for _, n := range names {
+		d.entries = append(d.entries, chooserEntry{name: n, path: at + `\` + n, dir: true})
+	}
+	sortChooser(d.entries)
+	d.selPath = at + `\Talking Heads - Remain in Light`
+	c.setListing(d)
+	u.chooser = c
 }
