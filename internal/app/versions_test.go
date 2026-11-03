@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/BrandonDedolph/core-desktop-app/internal/version"
 )
@@ -106,7 +107,8 @@ func TestLaunchCheckFindsANewerApp(t *testing.T) {
 		t.Errorf("newer app = %q, menu item visible %v", u.st.NewerApp, u.menuVisible(menuGetApp))
 	}
 	about := strings.Join(u.aboutLines("core.exe"), "\n")
-	if !strings.Contains(about, "Core app v0.3.1 is available — https://github.com/x/y/releases/tag/v0.3.1") ||
+	if !strings.Contains(about, "Core app v0.3.1 is available: ··· → Update the app to v0.3.1 downloads it and restarts.") ||
+		!strings.Contains(about, "The release: https://github.com/x/y/releases/tag/v0.3.1") ||
 		!strings.Contains(about, "writes files for Core v0.2.0 or newer") {
 		t.Errorf("About:\n%s", about)
 	}
@@ -160,19 +162,117 @@ func TestAppCheckQuietCases(t *testing.T) {
 	}
 }
 
-// "Get the newer app…" opens the release page.
-func TestGetTheNewerAppOpensThePage(t *testing.T) {
-	var opened []string
-	old := openURL
-	openURL = func(u string) error { opened = append(opened, u); return nil }
-	defer func() { openURL = old }()
-	u := NewUI(Options{})
+// takeDialog waits for the job's question and returns it unanswered.
+func takeDialog(t *testing.T, u *UI) *dialogRequest {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		u.mu.Lock()
+		req := u.askQueue
+		u.askQueue = nil
+		u.mu.Unlock()
+		if req != nil {
+			return req
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("no dialog")
+	return nil
+}
+
+// newerAppUI is a window whose launch check found v0.3.1.
+func newerAppUI(f *fakeBackend) *UI {
+	u := newTestUI(f)
+	u.st.NewerApp, u.st.NewerAppURL = "v0.3.1", "https://example/r"
+	return u
+}
+
+// The menu item names the release, and Cancel on its one question runs
+// nothing: no download, no swap, no restart.
+func TestUpdateTheAppCancelRunsNothing(t *testing.T) {
+	f := &fakeBackend{}
+	u := newerAppUI(f)
 	u.SetState(MenuState())
 	u.st.NewerApp, u.st.NewerAppURL = "v0.3.1", "https://example/r"
+	if !u.menuVisible(menuGetApp) || !u.menuEnabled(menuGetApp) {
+		t.Fatal("the menu item is not offered")
+	}
 	u.Layout(newTestContext(900, 600))
 	u.menuClicks[menuGetApp].Click()
 	u.Layout(newTestContext(900, 600))
-	if len(opened) != 1 || opened[0] != "https://example/r" {
-		t.Errorf("opened %q", opened)
+
+	req := takeDialog(t, u)
+	if req.title != "Update the app?" ||
+		req.body != "It downloads v0.3.1, replaces this program and core.exe beside it, and restarts." ||
+		req.okLabel != "Yes" || req.want != "" || req.solo() {
+		t.Errorf("dialog = %q / %q / %q (typed %q, solo %v)", req.title, req.body, req.okLabel, req.want, req.solo())
+	}
+	req.reply <- CancelAnswer
+	settle(u)
+	if len(f.appUpdates) != 0 || len(f.relaunched) != 0 {
+		t.Errorf("Cancel ran: updates %v, relaunched %v", f.appUpdates, f.relaunched)
+	}
+	if u.st.Job == nil || u.st.Job.Failed {
+		t.Errorf("job = %+v", u.st.Job)
+	}
+}
+
+// Yes downloads (the header shows the download's percentage), swaps and
+// restarts the program UpdateApp names.
+func TestUpdateTheAppYesUpdatesAndRestarts(t *testing.T) {
+	f := &fakeBackend{}
+	u := newerAppUI(f)
+	u.startAppUpdate()
+	req := takeDialog(t, u)
+	req.reply <- "yes"
+	settle(u)
+	if len(f.appUpdates) != 1 || f.appUpdates[0] != "v0.3.1" {
+		t.Errorf("updates = %v", f.appUpdates)
+	}
+	if len(f.relaunched) != 1 || f.relaunched[0] != `C:\Core\core-app.exe` {
+		t.Errorf("relaunched = %v", f.relaunched)
+	}
+	log := strings.Join(u.st.Log, "\n")
+	if !strings.Contains(log, "--- app update ---") || !strings.Contains(log, "updated to v0.3.1; starting it") {
+		t.Errorf("log:\n%s", log)
+	}
+}
+
+// The header carries the download's progress while it runs.
+func TestUpdateTheAppProgressInTheHeader(t *testing.T) {
+	u := NewUI(Options{})
+	u.st.Job = &JobStatus{Kind: JobAppUpdate, Pct: -1}
+	u.st.Apply(Event{Kind: EventProgress, Job: JobAppUpdate, Text: "downloading core-app-windows-amd64.exe", Pct: 0.42})
+	if s, _ := u.statusLine(); s != "app update: downloading core-app-windows-amd64.exe  ·  42%" {
+		t.Errorf("header = %q", s)
+	}
+}
+
+// A failure restarts nothing, and the log says why and that nothing changed.
+func TestUpdateTheAppFailureRestartsNothing(t *testing.T) {
+	f := &fakeBackend{appUpdateErr: errors.New("ghrelease: the downloaded image does not verify: core.exe")}
+	u := newerAppUI(f)
+	u.startAppUpdate()
+	takeDialog(t, u).reply <- "yes"
+	settle(u)
+	if len(f.relaunched) != 0 {
+		t.Errorf("relaunched after a failure: %v", f.relaunched)
+	}
+	if u.st.Job == nil || !u.st.Job.Failed {
+		t.Fatalf("job = %+v", u.st.Job)
+	}
+	log := strings.Join(u.st.Log, "\n")
+	if !strings.Contains(log, "does not verify: core.exe — the app was left as it was") {
+		t.Errorf("log:\n%s", log)
+	}
+}
+
+// The menu item is greyed while another job runs: an update must not
+// start under a sync.
+func TestUpdateTheAppWaitsForOtherJobs(t *testing.T) {
+	u := newerAppUI(&fakeBackend{})
+	u.st.Job = &JobStatus{Kind: JobSync, Pct: -1}
+	if u.menuEnabled(menuGetApp) {
+		t.Error("Update the app is enabled during a sync")
 	}
 }

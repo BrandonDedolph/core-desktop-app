@@ -30,7 +30,7 @@ func TestRootRegistersOnlyRealCommands(t *testing.T) {
 		"build": true, "info": true, "backup": true,
 		"firmware": true, "index": true, "art": true,
 		"organize": true, "fix": true, "sync": true, "eject": true, "flash": true,
-		"update": true, "doctor": true,
+		"update": true, "doctor": true, "self-update": true,
 		"name": true, "install": true, "config": true,
 	}
 	for _, c := range Root().Commands() {

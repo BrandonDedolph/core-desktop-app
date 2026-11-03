@@ -66,6 +66,11 @@ type fakeBackend struct {
 	appTag, appURL string
 	appErr         error
 	appCalls       int
+	// appUpdates are the tags UpdateApp was asked for; appUpdateErr is
+	// its answer; relaunched is what RelaunchApp was handed.
+	appUpdates   []string
+	appUpdateErr error
+	relaunched   []string
 
 	backupsApple time.Time
 	backupsN     int
@@ -322,6 +327,27 @@ func (f *fakeBackend) Sync(ctx context.Context, o syncer.Options, emit func(Even
 		}
 	}
 	return plan, err
+}
+
+// UpdateApp records the tag and answers appUpdateErr, with a progress
+// line the way the real one reports a download.
+func (f *fakeBackend) UpdateApp(ctx context.Context, tag string, emit func(Event)) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.appUpdates = append(f.appUpdates, tag)
+	emit(Event{Kind: EventProgress, Text: "downloading core-app-windows-amd64.exe", Pct: 0.42})
+	if f.appUpdateErr != nil {
+		return "", f.appUpdateErr
+	}
+	return `C:\Core\core-app.exe`, nil
+}
+
+// RelaunchApp records the program it would start.
+func (f *fakeBackend) RelaunchApp(exe string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.relaunched = append(f.relaunched, exe)
+	return nil
 }
 
 // AppRelease answers from appTag/appURL/appErr.

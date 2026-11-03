@@ -54,7 +54,7 @@ var menuLabels = [menuCount]string{
 	menuShowLog:   "Show the log",
 	menuCopyLog:   "Copy the log",
 	menuOpenMusic: "Open the music folder",
-	menuGetApp:    "Get the newer app…",
+	menuGetApp:    "Update the app",
 	menuSettings:  "Settings…",
 	menuAbout:     "About",
 }
@@ -78,7 +78,7 @@ func (u *UI) menuEnabled(i int) bool {
 		return !busy && u.st.Device.Found
 	case menuFlashFile:
 		return !busy && u.st.Device.Found
-	case menuReread, menuCheck:
+	case menuReread, menuCheck, menuGetApp:
 		return !busy
 	case menuCopyLog:
 		return len(u.st.Log) > 0
@@ -88,11 +88,11 @@ func (u *UI) menuEnabled(i int) bool {
 	return true
 }
 
-// menuVisible hides the one item that only exists sometimes: "Get the
-// newer app…", there only when the launch check found one.
+// menuVisible hides the one item that only exists sometimes: "Update the
+// app to vX.Y.Z", there only when the launch check found a newer app.
 func (u *UI) menuVisible(i int) bool {
 	if i == menuGetApp {
-		return u.st.NewerApp != "" && u.st.NewerAppURL != ""
+		return u.st.NewerApp != ""
 	}
 	return true
 }
@@ -146,9 +146,7 @@ func (u *UI) menuDo(gtx C, i int) {
 	case menuOpenMusic:
 		u.openMusicFolder()
 	case menuGetApp:
-		if err := openURL(u.st.NewerAppURL); err != nil {
-			u.st.Logf("could not open %s: %v", u.st.NewerAppURL, err)
-		}
+		u.startAppUpdate()
 	case menuAbout:
 		u.showAbout()
 	}
@@ -185,25 +183,6 @@ var openFolder = func(dir string) error {
 	}
 	// Reap it: explorer exits 1 even when it worked, so the status is
 	// not worth reading.
-	go func() { _ = cmd.Wait() }()
-	return nil
-}
-
-// openURL opens a web page in the default browser. A variable for the
-// tests, like openFolder.
-var openURL = func(url string) error {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	case "darwin":
-		cmd = exec.Command("open", url)
-	default:
-		cmd = exec.Command("xdg-open", url)
-	}
-	if err := cmd.Start(); err != nil {
-		return err
-	}
 	go func() { _ = cmd.Wait() }()
 	return nil
 }
@@ -267,6 +246,9 @@ func (u *UI) menuLayer(gtx C) D {
 						label := menuLabels[i]
 						if i == menuShowLog && u.st.LogOpen {
 							label = "Hide the log"
+						}
+						if i == menuGetApp {
+							label = appUpdateLabel(u.st.NewerApp)
 						}
 						return u.menuRow(gtx, &u.menuClicks[i], label, u.menuEnabled(i), nil, false)
 					}))
@@ -354,7 +336,11 @@ func (u *UI) aboutLines(cli string) []string {
 		"core CLI: " + cli,
 	}
 	if u.st.NewerApp != "" {
-		lines = append(lines, "", "Core app "+u.st.NewerApp+" is available — "+u.st.NewerAppURL)
+		lines = append(lines, "", "Core app "+u.st.NewerApp+" is available: ··· → "+appUpdateLabel(u.st.NewerApp)+
+			" downloads it and restarts.")
+		if u.st.NewerAppURL != "" {
+			lines = append(lines, "The release: "+u.st.NewerAppURL)
+		}
 	}
 	return append(lines, "", "Core is Apache-2.0 · Nunito is OFL")
 }

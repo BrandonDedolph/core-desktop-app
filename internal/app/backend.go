@@ -72,6 +72,13 @@ type Backend interface {
 	// AppRelease asks GitHub for the newest desktop-app release (a `v…`
 	// tag in the app's own repository): its tag and its page.
 	AppRelease(ctx context.Context) (tag, url string, err error)
+	// UpdateApp replaces this program and the core beside it with the app
+	// release tag: download, verify against the release's .sha256 files,
+	// swap. It returns this program's path (read before the swap) for
+	// RelaunchApp; on an error nothing was replaced.
+	UpdateApp(ctx context.Context, tag string, emit func(Event)) (exe string, err error)
+	// RelaunchApp starts exe with this process's arguments and exits.
+	RelaunchApp(exe string) error
 	// Download fetches (or finds cached) the release's .ipod and
 	// returns the local path, checksum already verified.
 	Download(ctx context.Context, rel Release, emit func(Event)) (string, error)

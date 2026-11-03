@@ -36,7 +36,7 @@ func frontStrings(u *UI) []string {
 	out = append(out, menuLabels[:]...)
 	out = append(out, u.settingsStrings()...)
 	out = append(out, chooserStrings()...)
-	for k := JobNone; k <= JobUndoFix; k++ {
+	for k := JobNone; k <= JobAppUpdate; k++ {
 		out = append(out, k.String())
 	}
 	for _, c := range Categories {
