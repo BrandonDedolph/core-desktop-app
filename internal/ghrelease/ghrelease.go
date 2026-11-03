@@ -20,6 +20,8 @@ package ghrelease
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -112,6 +114,10 @@ type Client struct {
 	// Settings → Include pre-releases). A draft is never chosen: it is
 	// not published, and its assets cannot be downloaded without a token.
 	IncludePrereleases bool
+	// Progress, when set, is told how far a Download has got: bytes so
+	// far and the size the release announced (0 when it did not say).
+	// It is called from the downloading goroutine.
+	Progress func(done, total int64)
 }
 
 // New returns a client configured from the environment.
@@ -380,10 +386,44 @@ func Download(ctx context.Context, a Asset, dst string) error {
 
 // Download is Client.Download; see the package-level Download.
 func (c *Client) Download(ctx context.Context, a Asset, dst string) error {
+	return c.download(ctx, a, dst, func(p string) error { return VerifyFile(a.Name, p) })
+}
+
+// DownloadSHA256 is Download for a file whose integrity is a SHA-256 the
+// release publishes beside it (the app's own binaries: `<asset>.sha256`).
+// The temp file is hashed before it is renamed into place, so a file
+// that does not match never reaches dst; a cached dst that does not
+// match is fetched again, not trusted.
+func (c *Client) DownloadSHA256(ctx context.Context, a Asset, dst, sum string) error {
+	want := strings.ToLower(strings.TrimSpace(sum))
+	if len(want) != 64 {
+		return fmt.Errorf("%w: %s: %q is not a SHA-256", ErrChecksum, a.Name, sum)
+	}
+	return c.download(ctx, a, dst, func(p string) error { return verifySHA256(a.Name, p, want) })
+}
+
+// verifySHA256 hashes path and compares it with want (lower-case hex).
+func verifySHA256(name, path, want string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("ghrelease: %w", err)
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return fmt.Errorf("ghrelease: hashing %s: %w", path, err)
+	}
+	if got := hex.EncodeToString(h.Sum(nil)); got != want {
+		return fmt.Errorf("%w: %s: SHA-256 %s, the release says %s", ErrChecksum, name, got, want)
+	}
+	return nil
+}
+
+func (c *Client) download(ctx context.Context, a Asset, dst string, verify func(path string) error) error {
 	if a.URL == "" {
 		return fmt.Errorf("%w: %q has no download URL", ErrNoAsset, a.Name)
 	}
-	if checkFile(a, dst) == nil {
+	if sizeOK(a, dst) == nil && verify(dst) == nil {
 		return nil
 	}
 	dir := filepath.Dir(dst)
@@ -428,7 +468,11 @@ func (c *Client) Download(ctx context.Context, a Asset, dst string) error {
 	if limit <= 0 {
 		limit = maxAssetBytes
 	}
-	n, err := io.Copy(tmp, io.LimitReader(resp.Body, limit+1))
+	var body io.Reader = io.LimitReader(resp.Body, limit+1)
+	if c.Progress != nil {
+		body = &progressReader{r: body, total: a.Size, fn: c.Progress}
+	}
+	n, err := io.Copy(tmp, body)
 	if err != nil {
 		return fmt.Errorf("ghrelease: downloading %s: %w", a.Name, err)
 	}
@@ -442,7 +486,7 @@ func (c *Client) Download(ctx context.Context, a Asset, dst string) error {
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("ghrelease: close %s: %w", tmpName, err)
 	}
-	if err := VerifyFile(a.Name, tmpName); err != nil {
+	if err := verify(tmpName); err != nil {
 		return err
 	}
 	if err := os.Rename(tmpName, dst); err != nil {
@@ -476,8 +520,34 @@ func VerifyFile(name, path string) error {
 	return nil
 }
 
+// progressReader reports each read to fn.
+type progressReader struct {
+	r     io.Reader
+	done  int64
+	total int64
+	fn    func(done, total int64)
+}
+
+func (p *progressReader) Read(b []byte) (int, error) {
+	n, err := p.r.Read(b)
+	if n > 0 {
+		p.done += int64(n)
+		p.fn(p.done, p.total)
+	}
+	return n, err
+}
+
 // checkFile is the cache-hit test: right size, and it verifies.
 func checkFile(a Asset, dst string) error {
+	if err := sizeOK(a, dst); err != nil {
+		return err
+	}
+	return VerifyFile(a.Name, dst)
+}
+
+// sizeOK is the first half of a cache hit: dst exists and has the size
+// the release says.
+func sizeOK(a Asset, dst string) error {
 	st, err := os.Stat(dst)
 	if err != nil {
 		return err
@@ -486,7 +556,7 @@ func checkFile(a Asset, dst string) error {
 		return fmt.Errorf("ghrelease: cached %s is %d bytes, the release says %d",
 			dst, st.Size(), a.Size)
 	}
-	return VerifyFile(a.Name, dst)
+	return nil
 }
 
 // appVersionRE reads "vX.Y.Z" off the front of a tag or of a

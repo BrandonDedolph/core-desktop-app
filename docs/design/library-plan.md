@@ -189,6 +189,22 @@ a service, or updating an app that was not started from a writable folder
 (Program Files without elevation): that case says where the release is and
 stops, which is today's behaviour.
 
+**Deviations (as built, 2026-11-03).** The releases carried no checksum
+for the app's binaries — `ghrelease`'s only check is the `.ipod` one — so
+the release workflow now writes a `<name>.sha256` beside every binary
+(sha256sum's format, made by the job that built it) and
+`tools/release.py --check` expects twenty assets. The updater refuses a
+binary without its `.sha256`, so releases up to v0.3.0 cannot be installed
+this way; the first release that can update itself is the one after the
+release made from this change. The Program Files refusal is a log line naming the
+folder and the release page rather than the old "open the page" link: the
+item is now the job, and the link is gone (About still shows the page). On
+Linux and macOS no `.old` file is made — the new file is renamed over the
+old one — so only the Windows swap has a rollback, which matters there
+because it is two renames per program. `core self-update` replaces both
+programs and does not restart anything: there is nothing to restart in a
+console. The menu item is greyed while another job runs.
+
 ## Decisions taken 2026-11-03
 
 - The bar says the iPod's name alone; the model is the Summary tab's; the

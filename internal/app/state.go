@@ -62,6 +62,9 @@ const (
 	JobKeepAlbum
 	// JobApplyCover is "Use this cover": one album's cover written now.
 	JobApplyCover
+	// JobAppUpdate is ··· → Update the app: this program replaced by a
+	// newer release of itself.
+	JobAppUpdate
 )
 
 // String is the label shown in the status line and written into the
@@ -102,6 +105,8 @@ func (k JobKind) String() string {
 		return "removing a duplicate album"
 	case JobApplyCover:
 		return "writing a cover"
+	case JobAppUpdate:
+		return "app update"
 	default:
 		return "idle"
 	}

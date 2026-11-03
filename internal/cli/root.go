@@ -64,6 +64,7 @@ func Root() *cobra.Command {
 		newFlashCmd(),
 		newUpdateCmd(),
 		newDoctorCmd(),
+		newSelfUpdateCmd(),
 	)
 
 	return root

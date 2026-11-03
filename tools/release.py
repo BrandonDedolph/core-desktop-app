@@ -13,8 +13,10 @@ script rewrites nothing in the tree. It
   1. checks CHANGELOG.md has a "## <version>" section and writes that section
      to a notes file for `gh release create`;
   2. prints the steps: tag, push, `gh release create` with NO core.ipod;
-  3. asks the release what it carries. TEN assets are expected — the five
-     `core` CLI binaries and the five `core-app` binaries — and no core.ipod.
+  3. asks the release what it carries. TWENTY assets are expected — the
+     five `core` CLI binaries, the five `core-app` binaries and a
+     `<name>.sha256` beside each (the self-updater verifies against it) —
+     and no core.ipod.
 
 `--check` runs only the asset step, which is what you want a few minutes after
 tagging, when CI has had time to finish. Nothing here uploads binaries.
@@ -71,7 +73,7 @@ next:
   # starts .github/workflows/release.yml, which builds the ten core-* /
   # core-app-* binaries on three runners and attaches them once the release
   # exists (it waits up to ten minutes for it). Then:
-  python3 tools/release.py {ver} --check    # lists which of the ten landed
+  python3 tools/release.py {ver} --check    # lists which of the twenty landed
 """)
     check_assets(ver)
 
@@ -97,14 +99,20 @@ APP_BINARIES = [
     "core-app-windows-amd64.exe",
 ]
 
-BINARIES = CLI_BINARIES + APP_BINARIES
+# Each binary carries a `<name>.sha256` beside it (sha256sum's format),
+# written by the job that built it. `core self-update` and the window's
+# Update the app refuse a binary without one, so a missing checksum is as
+# missing as the binary.
+CHECKSUMS = [b + ".sha256" for b in CLI_BINARIES + APP_BINARIES]
+
+BINARIES = CLI_BINARIES + APP_BINARIES + CHECKSUMS
 
 # A firmware image does not belong on a release of this repository.
 FORBIDDEN = {"core.ipod"}
 
 
 def check_assets(ver, required=False):
-    """Print which of the ten binaries are on the release.
+    """Print which of the ten binaries and their checksums are on the release.
 
     Advisory during a normal run — at that point the tag usually does not
     exist yet, and a missing release is the expected state, not an error.
@@ -144,7 +152,7 @@ def check_assets(ver, required=False):
     if gone or wrong:
         if gone:
             print(f"{len(gone)} of {len(BINARIES)} missing: {', '.join(gone)}")
-            print("  core-* binaries -> .github/workflows/release.yml attaches these; "
+            print("  core-* binaries and their .sha256 -> .github/workflows/release.yml attaches these; "
                   "check `gh run list --workflow=Release`")
         if "core-app-linux-arm64" in gone:
             print("  core-app-linux-arm64 -> its job runs on ubuntu-24.04-arm and is "

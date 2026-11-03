@@ -9,11 +9,18 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/BrandonDedolph/core-desktop-app/internal/cli"
+	"github.com/BrandonDedolph/core-desktop-app/internal/selfupdate"
 )
 
 func main() {
+	// What an earlier self-update renamed out of the way (core.old.exe,
+	// core-app.old.exe) is no longer running by now, so it can go.
+	if exe, err := selfupdate.Executable(); err == nil {
+		selfupdate.CleanOld(filepath.Dir(exe))
+	}
 	// Build the root first and report through ITS error writer rather
 	// than os.Stderr directly: --elevated-log retargets that writer, and
 	// the elevated child's console closes the instant it exits, so an
