@@ -155,6 +155,12 @@ type Backend interface {
 	// writes it. A missing file is an error that errors.Is
 	// fs.ErrNotExist; a file with no valid header is devicefs.ErrLogHeader.
 	ReadDeviceLog(ctx context.Context, volume string) ([]doctor.BootLog, error)
+	// EditTags is the album sheet's Save: the edits written into the
+	// files of one album (dir, inside the music folder root), then that
+	// album renamed to match, journaled and chained to after so UndoFix
+	// takes back the tags and the names together.
+	EditTags(ctx context.Context, root, dir string, edits []librarian.TagEdit, after string,
+		emit func(Event)) (*librarian.EditResult, error)
 }
 
 // RealBackend is the production wiring. Its fields are the two paths
@@ -1034,4 +1040,10 @@ func (b *RealBackend) ReadDeviceLog(ctx context.Context, volume string) ([]docto
 		return nil, err
 	}
 	return doctor.Boots(ring), nil
+}
+
+// EditTags is librarian.EditTags with the window's progress.
+func (b *RealBackend) EditTags(ctx context.Context, root, dir string, edits []librarian.TagEdit, after string,
+	emit func(Event)) (*librarian.EditResult, error) {
+	return librarian.EditTags(ctx, root, dir, edits, after, librarian.Options{Progress: libEvents(emit)})
 }

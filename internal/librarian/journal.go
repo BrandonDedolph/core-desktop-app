@@ -40,6 +40,13 @@ const fixJournalKind = "core-fix"
 // cannot read.
 const fixJournalFormat = 1
 
+// tagJournalFormat is the format of a journal that carries Tags. Format 1
+// journals — everything a build before Edit… wrote, and every Fix since —
+// read and replay unchanged; the bump is for the other direction: an older
+// build would ignore the Tags list and put the names back over tags it had
+// not restored, so it refuses the journal instead.
+const tagJournalFormat = 2
+
 type fixJournal struct {
 	Kind   string    `json:"kind"`
 	Format int       `json:"format"`
@@ -54,6 +61,8 @@ type fixJournal struct {
 	Sidecars []fileOp `json:"sidecars,omitempty"`
 	// Trash are album folders RemoveDuplicate moved away.
 	Trash []trashOp `json:"trash,omitempty"`
+	// Tags are the files Edit… retagged (edit.go), with their old values.
+	Tags []tagOp `json:"tags,omitempty"`
 	// Previous is the journal of the changes made before this one in the
 	// same session; Undo takes it back after this one.
 	Previous string `json:"previous,omitempty"`
@@ -218,8 +227,9 @@ func readFixJournal(path string) (*fixJournal, bool, error) {
 	if err := json.Unmarshal(b, &j); err != nil || j.Kind != fixJournalKind {
 		return nil, false, nil
 	}
-	if j.Format != fixJournalFormat {
-		return nil, true, fmt.Errorf("%s: fix journal format %d, this build writes %d", path, j.Format, fixJournalFormat)
+	if j.Format != fixJournalFormat && j.Format != tagJournalFormat {
+		return nil, true, fmt.Errorf("%s: fix journal format %d, this build reads %d and %d", path, j.Format,
+			fixJournalFormat, tagJournalFormat)
 	}
 	j.Path = path
 	return &j, true, nil
@@ -250,8 +260,10 @@ func stampOf(path string) (size, mtime int64, err error) {
 // does not keep a pre-image of a whole FLAC, and flac.RemovePictures does it
 // by hand.
 //
+// The tags an Edit… wrote go back last of the file changes, after the names.
+//
 // What could not be put back is listed in the report's Skipped, with Op.Reason
-// "cover", "sidecar" or "trash" for this file's own entries.
+// "cover", "sidecar", "tags" or "trash" for this file's own entries.
 func Undo(ctx context.Context, journalPath string, o Options) (*organizer.UndoReport, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -342,6 +354,33 @@ func Undo(ctx context.Context, journalPath string, o Options) (*organizer.UndoRe
 		}
 		if err != nil {
 			skip("cover", op.Path, op.Path, err.Error())
+			continue
+		}
+		rep.Undone++
+	}
+
+	// The tags last of the file changes: organizer has put every file back
+	// at the path the tags were written at, with the stamp the write left.
+	for i := len(j.Tags) - 1; i >= 0; i-- {
+		if err := ctx.Err(); err != nil {
+			return rep, err
+		}
+		op := j.Tags[i]
+		if !op.Done {
+			continue
+		}
+		o.progress(JobEdit, "putting the old tags back in "+filepath.Base(op.Path), len(j.Tags)-i, len(j.Tags))
+		size, mt, err := stampOf(op.Path)
+		if err != nil {
+			skip("tags", op.Path, op.Path, "it is not there any more")
+			continue
+		}
+		if size != op.Size || mt != op.MTimeNS {
+			skip("tags", op.Path, op.Path, "it changed after the tags were written; left alone")
+			continue
+		}
+		if err := restoreTags(op); err != nil {
+			skip("tags", op.Path, op.Path, err.Error())
 			continue
 		}
 		rep.Undone++

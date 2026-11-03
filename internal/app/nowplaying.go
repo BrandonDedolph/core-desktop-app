@@ -285,6 +285,10 @@ func (u *UI) reindexNowPlaying() {
 // editorFocused reports whether a text field has the keyboard, which is
 // when Space and ctrl+arrows belong to it.
 func (u *UI) editorFocused(gtx C) bool {
+	if s := u.sheet; s != nil && s.edit != nil {
+		// The album's fields are open: Space is a space in a title.
+		return true
+	}
 	if c := u.chooser; c != nil && gtx.Focused(&c.pathEd) {
 		// "C:\Program Files" has a space in it.
 		return true

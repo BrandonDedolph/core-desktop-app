@@ -3,6 +3,8 @@ package app
 import (
 	"strings"
 	"testing"
+
+	"github.com/BrandonDedolph/core-desktop-app/internal/librarian"
 )
 
 // forbidden are the words the front of the window no longer uses: the old
@@ -36,9 +38,10 @@ func frontStrings(u *UI) []string {
 	out = append(out, menuLabels[:]...)
 	out = append(out, u.settingsStrings()...)
 	out = append(out, chooserStrings()...)
-	for k := JobNone; k <= JobAppUpdate; k++ {
+	for k := JobNone; k <= JobEditTags; k++ {
 		out = append(out, k.String())
 	}
+	out = append(out, albumEditStrings()...)
 	for _, c := range Categories {
 		out = append(out, c.Title(), c.Sub())
 	}
@@ -180,5 +183,32 @@ func TestTabNames(t *testing.T) {
 	u.SetState(LibraryState())
 	if n := u.fixCount(); n != 16 {
 		t.Fatalf("the canned report counts %d", n)
+	}
+}
+
+// albumEditStrings is the album sheet's Edit…: its button, the fields'
+// labels and hints, the foot's line, and what a save says after.
+func albumEditStrings() []string {
+	e := newAlbumEdit(albumTags{Mixed: map[string]bool{librarian.TagGenre: true}})
+	res := &librarian.EditResult{Written: 3, Renamed: 2, Failures: []librarian.Failure{{Reason: "x"}}}
+	return []string{"Edit…", "Album", "Album artist", "Genre", "Year", "Title", "Artist", editHint,
+		e.hint(librarian.TagGenre, "Genre"), e.hint(librarian.TagAlbum, "Album title"),
+		savedNote(res, "The Great Curve"), "Nothing was changed.", "Reading the tags…", "Saving…"}
+}
+
+// The editor's own words: what Save does is said in the library's terms —
+// the music folder, the next sync — and never as an edit of the iPod.
+func TestTheEditorSaysWhereTheChangeGoes(t *testing.T) {
+	if !strings.Contains(editHint, "music folder") || !strings.Contains(editHint, "next sync") {
+		t.Errorf("editHint %q", editHint)
+	}
+	got := savedNote(&librarian.EditResult{Written: 1, Moved: 1}, "")
+	if got != "Saved: 1 file retagged, 1 renamed to match. The next sync copies them; Undo on the Fix tab takes it back." {
+		t.Errorf("savedNote %q", got)
+	}
+	for _, s := range albumEditStrings() {
+		if strings.Contains(s, "on the iPod") && !strings.Contains(s, "next sync") {
+			t.Errorf("%q talks about editing the iPod", s)
+		}
 	}
 }

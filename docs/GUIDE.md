@@ -113,7 +113,16 @@ After any write the window reads the iPod again, so the header shows the new ver
 
 Click an album to open it: its cover, what the iPod has of it, and its tracklist. Click a track to
 listen to it on the computer, and the album plays on from there; the playing track shows the
-iPod's bouncing bars, and *Show folder on this PC* opens the folder. The player is the bottom left
+iPod's bouncing bars, and *Show folder on this PC* opens the folder. *Edit…* turns the tracklist
+into the album's tags in fields — album, album artist, genre and year, and each track's number,
+title and artist. *Save* writes what you changed into the files in your music folder (nothing else
+in them: ReplayGain, the cover and every other tag stay as they were), then renames the files and the
+album folder to match, and the album shows as *changed* until the next sync copies it; *Cancel* or
+Esc leaves everything as it was. The iPod is never edited directly — the sync takes the new tags
+across — and *Undo* on the Fix tab puts back the old tags and the old names together. A field the
+tracks disagree about (two genres on one album) opens empty and is only written if you type into it.
+A track that is playing when you save it is stopped first, and the album says so. MP3 tags are written
+too, but the renaming is FLAC-only, as Fix's is. The player is the bottom left
 of the window, whether the album is open or not: the album's cover, the bars, the track and its
 artist, the time over a line you can click to jump, pause, next and ✕ (stop). A click on the cover
 or the title opens the album at that track, and the album's tile in the grid carries the bars too.
