@@ -159,7 +159,7 @@ func TestSnapshotOnyx(t *testing.T) {
 }
 
 // TestSnapshotGates renders the write dialog (tested, both themes; mid-hold),
-// the removal list, About, the album sheet, the sync preview and Settings.
+// the removal list, About, the album sheet, the sync preview, Settings and the chooser.
 func TestSnapshotGates(t *testing.T) {
 	dir := snapshotDir(t)
 	cases := []struct {
@@ -170,6 +170,7 @@ func TestSnapshotGates(t *testing.T) {
 		{"remove", ThemeLinen}, {"remove", ThemeOnyx}, {"about", ThemeLinen},
 		{"album", ThemeLinen}, {"album", ThemeOnyx}, {"preview", ThemeLinen}, {"preview", ThemeOnyx},
 		{"settings", ThemeLinen}, {"settings", ThemeOnyx},
+		{"chooser", ThemeLinen}, {"chooser", ThemeOnyx},
 	}
 	for _, c := range cases {
 		out := filepath.Join(dir, fmt.Sprintf("dialog-%s-%s-900x600.png", c.kind, c.th))

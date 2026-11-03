@@ -343,7 +343,13 @@ type UI struct {
 	// no error, and read once by afterJob: Eject when a sync finishes.
 	syncWrote bool
 
-	pickerOK bool
+	// chooser is the open Browse… sheet (chooser.go), nil when closed; it
+	// sits over the album sheet and Settings, under the dialogs.
+	// newChooserDir is its listing on the way from the reading goroutine,
+	// under mu. chooserLast is the folder last chosen per kind, this run.
+	chooser       *chooserSheet
+	newChooserDir *chooserDir
+	chooserLast   map[string]string
 
 	// settings is the Settings sheet (settings.go), nil when closed.
 	// newBackupDir is its Backup folder picker's answer, under mu like
@@ -378,7 +384,6 @@ func NewUI(o Options) *UI {
 		cfg:        o.Config,
 		cfgPath:    o.ConfigPath,
 		invalidate: o.Invalidate,
-		pickerOK:   PickerAvailable(),
 		now:        time.Now,
 	}
 	if u.invalidate == nil {
@@ -537,6 +542,8 @@ func (u *UI) drain() {
 	u.newBackupDir = ""
 	picked := u.newPicked
 	u.newPicked = nil
+	chDir := u.newChooserDir
+	u.newChooserDir = nil
 	renamed := u.newName
 	u.newName = nil
 	detected := u.newDetect
@@ -629,6 +636,9 @@ func (u *UI) drain() {
 	}
 	if picked != nil {
 		u.applyPicked(*picked)
+	}
+	if chDir != nil {
+		u.applyChooserDir(chDir)
 	}
 	if report != nil {
 		u.st.Report, u.st.Scanned = report, time.Now()
@@ -813,6 +823,9 @@ func (u *UI) Layout(gtx C) D {
 		// album sheet when a job asks while one is open.
 		u.st.MenuOpen = false
 		u.dialogEvents(gtx)
+	case u.chooser != nil:
+		u.st.MenuOpen = false
+		u.chooserEvents(gtx)
 	case u.sheet != nil:
 		u.st.MenuOpen = false
 		u.sheetEvents(gtx)
@@ -832,7 +845,7 @@ func (u *UI) Layout(gtx C) D {
 	return layout.Stack{}.Layout(gtx,
 		layout.Stacked(func(gtx C) D {
 			g := gtx
-			if u.dlg != nil || u.sheet != nil || u.settings != nil {
+			if u.dlg != nil || u.sheet != nil || u.settings != nil || u.chooser != nil {
 				// A modal that does not actually block the buttons
 				// behind it is a modal that lets somebody start a sync
 				// while a flash confirmation is on screen.
@@ -842,11 +855,20 @@ func (u *UI) Layout(gtx C) D {
 			return u.pageWithDrawer(g)
 		}),
 		layout.Expanded(func(gtx C) D {
+			under := gtx
+			if u.chooser != nil {
+				// The sheet the chooser was opened from stays on screen
+				// under it, and takes no clicks while it is there.
+				under = gtx.Disabled()
+			}
 			if u.sheet != nil {
-				u.sheetLayer(gtx)
+				u.sheetLayer(under)
 			}
 			if u.settings != nil {
-				u.settingsLayer(gtx)
+				u.settingsLayer(under)
+			}
+			if u.chooser != nil {
+				u.chooserLayer(gtx)
 			}
 			if u.dlg != nil {
 				return u.dialog(gtx)
@@ -1892,9 +1914,9 @@ func (u *UI) installPane(gtx C) D {
 					if f := u.st.InstallFile; f != "" {
 						bs = append(bs,
 							btn{&u.installFileBtn, "Install from " + shortName(fileBase(f), 28), false, !busy},
-							btn{&u.installPickBtn, "Choose another file…", false, !busy && u.pickerOK})
+							btn{&u.installPickBtn, "Choose another file…", false, !busy})
 					} else {
-						bs = append(bs, btn{&u.installFileBtn, "Install from a file…", false, !busy && u.pickerOK})
+						bs = append(bs, btn{&u.installFileBtn, "Install from a file…", false, !busy})
 					}
 					return u.buttonRow(gtx, bs...)
 				}),

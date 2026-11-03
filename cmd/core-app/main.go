@@ -20,7 +20,7 @@
 //	core-app --screenshot OUT.png [--state demo|library|empty|looking|notinstalled|menu|advanced|album|playing|preview|lowres|lowres-after|duplicates|tidy]
 //	              [--size 900x600] [--tab music|fix|summary]
 //	              [--theme system|linen|onyx] [--drawer]
-//	              [--dialog write|holding|remove|about|album|preview|settings]
+//	              [--dialog write|holding|remove|about|album|preview|settings|chooser]
 //	              [--source DIR]
 //	                                  render one frame headless and exit;
 //	                                  with --source, the grid, covers and the
@@ -65,7 +65,7 @@ func main() {
 		noDetect = flag.Bool("no-detect", false,
 			"Do not poll for the iPod every 2 seconds; the window stays on whatever it last read")
 		drawer    = flag.Bool("drawer", false, "--screenshot with the log drawer open")
-		dialog    = flag.String("dialog", "", "--screenshot with a dialog open: write, holding, remove, about, album, preview, settings")
+		dialog    = flag.String("dialog", "", "--screenshot with a dialog open: write, holding, remove, about, album, preview, settings, chooser")
 		themeName = flag.String("theme", "",
 			"Palette for this run: system (Onyx when Windows is set to dark apps), linen or onyx; default: the saved choice")
 		showVersion = flag.Bool("version", false, "Print the version and exit")

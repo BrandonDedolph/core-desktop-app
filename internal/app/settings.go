@@ -357,34 +357,25 @@ type pickedPath struct {
 	path string
 }
 
-// choosePath is Browse… on one of the three C3 path rows: the OS dialog on
-// its own goroutine, its answer landing in drain (applyPicked).
+// choosePath is Browse… on one of the three C3 path rows: the chooser, its
+// answer landing in drain (applyPicked).
 func (u *UI) choosePath(kind pathPick) {
-	go func() {
-		var (
-			path string
-			err  error
-		)
-		switch kind {
-		case pickGenreMap:
-			path, err = pickFileKind(context.Background(), genreMapFile)
-		case pickPlaylists:
-			path, err = pickFolderPrompt(context.Background(), "Choose the playlists folder")
-		default:
-			path, err = pickFolderPrompt(context.Background(), "Choose the folder for the log")
-		}
-		if err != nil {
-			u.Post(Event{Kind: EventLog, Text: "picker: " + err.Error()})
-			return
-		}
-		if path == "" {
-			return
-		}
+	var k chooserKind
+	var field string
+	switch kind {
+	case pickGenreMap:
+		k, field = chooseGenreMapKind, u.cfg.GenreMap
+	case pickPlaylists:
+		k, field = choosePlaylistsKind, u.cfg.PlaylistsDir
+	default:
+		k, field = chooseLogKind, u.cfg.LogFile
+	}
+	u.openChooser(k, field, func(path string) {
 		u.mu.Lock()
 		u.newPicked = &pickedPath{kind, path}
 		u.mu.Unlock()
 		u.invalidate()
-	}()
+	})
 }
 
 // applyPicked puts a picker's answer in its field and the file.
@@ -535,23 +526,15 @@ func (u *UI) configPathShown() string {
 	return p
 }
 
-// chooseBackupFolder is the Backup folder's Browse…: the OS folder dialog
-// on its own goroutine, its answer landing in drain like every picker's.
+// chooseBackupFolder is the Backup folder's Browse…: the chooser, its answer
+// landing in drain like every Browse…'s.
 func (u *UI) chooseBackupFolder() {
-	go func() {
-		path, err := pickFolderPrompt(context.Background(), "Choose the backup folder")
-		if err != nil {
-			u.Post(Event{Kind: EventLog, Text: "picker: " + err.Error()})
-			return
-		}
-		if path == "" {
-			return
-		}
+	u.openChooser(chooseBackupKind, u.backupDirShown(), func(path string) {
 		u.mu.Lock()
 		u.newBackupDir = path
 		u.mu.Unlock()
 		u.invalidate()
-	}()
+	})
 }
 
 // openDir shows a folder in the file manager, creating it first: Explorer
@@ -1049,7 +1032,7 @@ func (u *UI) libraryRows(gtx C) D {
 			s := u.settings
 			return u.rowFrame(gtx, setPlaylists, u.valueSub(func(gtx C) D {
 				return u.pathField(gtx, &s.playlistsEd, setDefault,
-					btn{&s.playlistsBrowse, setBrowse, false, !busy && u.pickerOK},
+					btn{&s.playlistsBrowse, setBrowse, false, !busy},
 					btn{&s.playlistsDefault, setDefault, false, u.cfg.PlaylistsDir != ""})
 			}, u.playlistsSub()), nil)
 		},
@@ -1109,7 +1092,7 @@ func (u *UI) syncRows(gtx C) D {
 		func(gtx C) D {
 			return u.rowFrame(gtx, setGenreMap, u.valueSub(func(gtx C) D {
 				return u.pathField(gtx, &s.genreEd, setBuiltin,
-					btn{&s.genreBrowse, setBrowse, false, !busy && u.pickerOK},
+					btn{&s.genreBrowse, setBrowse, false, !busy},
 					btn{&s.genreBuiltin, setBuiltin, false, u.cfg.GenreMap != ""})
 			}, setGenreSub), nil)
 		},
@@ -1122,7 +1105,7 @@ func (u *UI) diagnosticsRows(gtx C) D {
 	return u.setRows(gtx, func(gtx C) D {
 		return u.rowFrame(gtx, setLogFile, u.valueSub(func(gtx C) D {
 			return u.pathField(gtx, &s.logEd, "None",
-				btn{&s.logBrowse, setBrowse, false, u.pickerOK},
+				btn{&s.logBrowse, setBrowse, false, true},
 				btn{&s.logShow, setShowFolder, false, u.cfg.LogFile != ""})
 		}, setLogSub), nil)
 	})
@@ -1174,7 +1157,7 @@ func (u *UI) firmwareRows(gtx C) D {
 				}),
 				layout.Rigid(func(gtx C) D {
 					return u.buttonRow(gtx,
-						btn{&s.backupBrowse, setBrowse, false, !busy && u.pickerOK},
+						btn{&s.backupBrowse, setBrowse, false, !busy},
 						btn{&s.backupShow, setShowFolder, false, u.backupDirShown() != ""})
 				}),
 			)

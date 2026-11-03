@@ -437,7 +437,7 @@ func (u *UI) advancedPlate(gtx C) D {
 									layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
 									layout.Rigid(func(gtx C) D {
 										return u.buttonRow(gtx,
-											btn{&u.flashOpenBtn, "Choose an image…", false, !busy && u.pickerOK},
+											btn{&u.flashOpenBtn, "Choose an image…", false, !busy},
 											btn{&u.flashBtn, "Flash this image", false,
 												!busy && strings.TrimSpace(u.flashEd.Text()) != ""},
 										)
@@ -528,7 +528,7 @@ func (u *UI) sourceRow(gtx C, busy bool) D {
 		}),
 		layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
 		layout.Rigid(func(gtx C) D {
-			return u.button(gtx, btn{&u.browseBtn, "Browse…", false, !busy && u.pickerOK})
+			return u.button(gtx, btn{&u.browseBtn, "Browse…", false, !busy})
 		}),
 	)
 }

@@ -79,6 +79,15 @@ shows it within two seconds.
   to include pre-releases; and a log file, opened at the next start. *Restore defaults* puts them
   back, keeping the music folder and your iPods' names. The hold to write, the backup before
   every flash and the read-back check are not settings.
+- **Browse…**, wherever it is — the music folder, the Settings folders and genre map, an image to
+  flash or install — opens a chooser inside the window, not a separate dialog: the folder you are
+  in as a path you can click back along (*This PC › C: › Users › you › Music*), its folders (and,
+  when a file is wanted, only the files of that kind) in a list, and *Choose this folder* — or
+  *Choose "Name"* when a folder in the list is selected. Click once to select, again (or Enter)
+  to open; Backspace or *Up* goes up, the arrow keys move, Esc or a click outside cancels. *This
+  PC* lists the drives, the iPod among them. *Type a path* takes one pasted from elsewhere.
+  Hidden and system folders are not listed. It opens where the field already points, or where
+  you last chose for that field.
 
 Writing firmware — Install, Update, or an image of your own — is confirmed in one dialog that says
 which iPod will be written: its name, model, serial, which disk on this PC and how much is
