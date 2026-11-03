@@ -118,11 +118,14 @@ type dialogRequest struct {
 	// is one button. prose is the text face with Cancel kept.
 	info, prose bool
 	// card is the write dialog's identity card; items and total are the
-	// removal list; note is the Muted sentence under them; plan is the
-	// flasher's plan behind "Show the plan".
+	// removal list (or the sync preview's albums); note is the Muted
+	// sentence under them; plan is the flasher's (or the syncer's) plan
+	// behind "Show the plan".
 	card, items []cardRow
-	total       string
-	note, plan  string
+	// cardW is the card's label column; 0 is the identity card's 70 dp.
+	cardW      unit.Dp
+	total      string
+	note, plan string
 	// only marks a dialog with one button, which closes it: it says
 	// something and asks nothing ("Everything is on the iPod"). Such a
 	// dialog has no Cancel, and Esc or a click on the scrim closes it.

@@ -16,7 +16,7 @@ var forbidden = []string{
 // frontStrings is every string a canned state puts on the front of the
 // window: the header (both lines, the primary, the title), the tab names and
 // the tab row's note, the menu, the Settings sheet, the job names, the Install screen's text and
-// buttons, and the Library preview's overflow line.
+// buttons, the Library preview's overflow line, and the sync preview.
 func frontStrings(u *UI) []string {
 	name, model := u.headName()
 	status, _ := u.statusLine()
@@ -40,6 +40,20 @@ func frontStrings(u *UI) []string {
 	}
 	for _, c := range Categories {
 		out = append(out, c.Title(), c.Sub())
+	}
+	out = append(out, syncPreviewStrings(cannedPreview(u))...)
+	return out
+}
+
+// syncPreviewStrings is the sync preview's front: everything but the plan
+// behind "Show the plan", which — like the flasher's — is the plan as the
+// command line prints it.
+func syncPreviewStrings(d *dialogRequest) []string {
+	out := []string{d.title, d.total, d.note, d.okLabel}
+	for _, rows := range [][]cardRow{d.card, d.items} {
+		for _, r := range rows {
+			out = append(out, r.label, r.mid, r.value)
+		}
 	}
 	return out
 }

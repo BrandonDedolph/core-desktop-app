@@ -65,14 +65,20 @@ func (u *UI) dialogPlate(gtx C, d *dialogRequest) D {
 				gap(12)
 			}
 			if len(d.items) > 0 {
-				add(func(gtx C) D {
-					// The list scrolls inside what is left once the
-					// total, the note and the buttons have their room.
-					if m := gtx.Constraints.Max.Y - gtx.Dp(150); m > gtx.Dp(60) {
-						gtx.Constraints.Max.Y = m
+				// The list is flexible: it gets what is left once the
+				// fixed rows — the card above, the total, the note, the
+				// link and the buttons below — have their room (half of
+				// it when the plan is open), and scrolls inside that. It is no taller than
+				// its rows, so a short list keeps the plate short.
+				rows = append(rows, layout.Flexed(1, func(gtx C) D {
+					gtx.Constraints.Min.Y = 0
+					if gtx.Constraints.Max.Y < gtx.Dp(36) {
+						// No room for even one row: a sliver of border
+						// says nothing.
+						return D{}
 					}
 					return u.cardBox(gtx, d.items, false)
-				})
+				}))
 				gap(8)
 				add(u.wrap(12.5, u.pal.Ink, d.total))
 				gap(8)
@@ -89,7 +95,13 @@ func (u *UI) dialogPlate(gtx C, d *dialogRequest) D {
 				add(u.planLink)
 				if u.planOpen {
 					gap(6)
-					add(u.planBox)
+					// Flexible too, so an open plan shares what is left
+					// with the list rather than pushing the buttons off
+					// the plate.
+					rows = append(rows, layout.Flexed(1, func(gtx C) D {
+						gtx.Constraints.Min.Y = 0
+						return u.planBox(gtx)
+					}))
 				}
 				gap(10)
 			}
@@ -168,6 +180,9 @@ func (u *UI) cardBox(gtx C, rows []cardRow, labelled bool) D {
 								// A list: scrolls when it is longer than
 								// the room it has.
 								gtx.Constraints.Max.Y -= gtx.Dp(16)
+								if gtx.Constraints.Max.Y < 0 {
+									gtx.Constraints.Max.Y = 0
+								}
 								gtx.Constraints.Min.Y = 0
 								list := material.List(u.th, &u.itemList)
 								list.Indicator.Color = u.pal.SelSub
@@ -197,7 +212,11 @@ func (u *UI) cardLine(gtx C, r cardRow) D {
 	return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2)}.Layout(gtx, func(gtx C) D {
 		return layout.Flex{Alignment: layout.Baseline}.Layout(gtx,
 			layout.Rigid(func(gtx C) D {
-				w := gtx.Dp(70)
+				lw := unit.Dp(70)
+				if u.dlg != nil && u.dlg.cardW > 0 {
+					lw = u.dlg.cardW
+				}
+				w := gtx.Dp(lw)
 				gtx.Constraints.Min.X, gtx.Constraints.Max.X = w, w
 				return u.line(12, u.pal.Muted, r.label)(gtx)
 			}),
@@ -217,8 +236,9 @@ func (u *UI) listLine(gtx C, r cardRow) D {
 				if r.mid == "" {
 					return D{}
 				}
-				// A fixed column, so "9 of 12 tracks" lines up row to row.
-				w := gtx.Dp(112)
+				// A fixed column, so "9 of 12 tracks · changed" lines
+				// up row to row.
+				w := gtx.Dp(136)
 				gtx.Constraints.Min.X, gtx.Constraints.Max.X = w, w
 				return layout.Inset{Left: unit.Dp(12)}.Layout(gtx, u.text(12, u.pal.Muted, r.mid))
 			}),
@@ -257,13 +277,17 @@ func (u *UI) planLink(gtx C) D {
 	})
 }
 
-// planBox is the flasher's plan, mono, at most 200 dp tall, scrolling.
+// planBox is the plan behind the link — the flasher's, or the syncer's in
+// the sync preview — mono, at most 200 dp tall, scrolling.
 func (u *UI) planBox(gtx C) D {
 	lines := strings.Split(u.dlg.plan, "\n")
-	if want := len(lines) * gtx.Sp(unit.Sp(15)); want < gtx.Dp(200) {
-		gtx.Constraints.Max.Y = want
-	} else {
-		gtx.Constraints.Max.Y = gtx.Dp(200)
+	h := gtx.Dp(200)
+	if want := len(lines) * gtx.Sp(unit.Sp(15)); want < h {
+		h = want
+	}
+	// Never taller than what the plate has left.
+	if h < gtx.Constraints.Max.Y {
+		gtx.Constraints.Max.Y = h
 	}
 	gtx.Constraints.Min.Y = 0
 	list := material.List(u.th, &u.dlgBody)

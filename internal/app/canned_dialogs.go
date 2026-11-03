@@ -2,8 +2,10 @@ package app
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
+	"github.com/BrandonDedolph/core-desktop-app/internal/devicefs"
 	"github.com/BrandonDedolph/core-desktop-app/internal/flasher"
 	"github.com/BrandonDedolph/core-desktop-app/internal/syncer"
 )
@@ -63,7 +65,7 @@ func cannedDialog(u *UI, kind string) error {
 		u.openSettings()
 		return nil
 	case "preview":
-		u.dlg = previewDialog(u.st.Albums, u.st.Source, u.st.FirmwareTooOld())
+		u.dlg = cannedPreview(u)
 	default:
 		return fmt.Errorf("--dialog %q: want one of %s", kind, strings.Join(DialogKinds, ", "))
 	}
@@ -85,3 +87,68 @@ OSOS entry  devOffset 0x4800, body at 0x5000, capacity 7,618,560
 
 backup      C:\Users\you\AppData\Roaming\core\backups\fwpart-131475456-2026-09-15T01-12-04Z.bin
 ` + "\n" + flasher.ConfirmPrompt(`\\.\PhysicalDrive2`)
+
+// cannedPreview is `--dialog preview`: the sync preview for a plan made up
+// from the state's grid (cannedPlan), so the card, the albums' whys and
+// "Show the plan" all have something to say with no iPod attached.
+func cannedPreview(u *UI) *dialogRequest {
+	plan := cannedPlan(u.st.Albums)
+	return previewDialog(plan, AlbumsFromPlan(plan), u.st.Source, u.st.FirmwareTooOld(),
+		func(string) (int64, bool) { return 0, true })
+}
+
+// cannedPlan is the plan the grid's tiles describe: a NEW album's tracks
+// are copies of files the iPod does not have, a CHANGED album's are copies
+// of files modified since the last sync, the rest are skips; every NEW
+// album gets its covers rendered, one playlist is written, the index is
+// rewritten, and two albums are on the iPod and not in the folder.
+func cannedPlan(albums []Album) *syncer.Plan {
+	p := &syncer.Plan{Src: `C:\Users\you\Music\MC`, Dst: `D:\`, Clock: true}
+	for _, a := range albums {
+		p.AlbumOrder = append(p.AlbumOrder, a.Device)
+		p.Albums++
+		var size int64
+		if a.Copy > 0 {
+			size = a.Bytes / int64(a.Copy)
+		}
+		for i := 1; i <= a.Tracks; i++ {
+			p.Tracks++
+			name := fmt.Sprintf("%02d. Track %d.flac", i, i)
+			op := syncer.FileOp{
+				Src:    a.Dir + `\` + name,
+				Dst:    `D:\Music\` + a.Device + `\` + name,
+				Device: "Music/" + a.Device + "/" + name,
+				Album:  a.Device,
+				Size:   size,
+			}
+			switch {
+			case i > a.Copy:
+				op.Reason, op.Why = "same size and time", syncer.WhySame
+				p.Skip = append(p.Skip, op)
+				continue
+			case a.State == TileNew:
+				op.Reason, op.Why = "not on the device", syncer.WhyNew
+			default:
+				op.Reason, op.Why = "modified 3h12m40s after the copy on the device", syncer.WhyTime
+			}
+			p.Copy = append(p.Copy, op)
+			p.CopyBytes += size
+		}
+		art := syncer.ArtOp{Album: a.Device, Reason: "folder.art + folder.thm are already valid"}
+		if a.State == TileNew {
+			art.Write, art.Reason = true, "missing or invalid sidecars"
+		}
+		p.Art = append(p.Art, art)
+	}
+	p.Playlists = []syncer.PlaylistOp{
+		{Name: "Favourites.m3u8", Entries: make([]string, 24)},
+		{Name: "Road trip.m3u8", Entries: make([]string, 40), Unchanged: true},
+	}
+	p.Index = syncer.IndexOp{Size: 64 + 220*p.Tracks, Records: p.Tracks}
+	p.Prune = []string{
+		filepath.Join(p.Dst, devicefs.MusicDir, "Old Band - First Album"),
+		filepath.Join(p.Dst, devicefs.MusicDir, "Someone Else - Live at the Hall"),
+	}
+	p.PruneBytes = 1_242_000_000
+	return p
+}
