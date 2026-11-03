@@ -1138,3 +1138,53 @@ func TestUnderDir(t *testing.T) {
 		}
 	}
 }
+
+// TestAnHourShiftIsNotAChange: the morning after the clocks change, every
+// file on a FAT volume reads an hour off from when it was written, while the
+// NTFS source has not moved. Both directions skip, with a reason that says
+// so; an hour and a bit more is still a change; and the sidecars are not
+// stale for it either.
+func TestAnHourShiftIsNotAChange(t *testing.T) {
+	src, dst := srcTree(t), t.TempDir()
+	o := opts(src, dst)
+	plan, _ := syncOnce(t, o)
+
+	// Every copy on the device an hour older than its source (what Windows
+	// shows after the autumn change), then an hour newer (spring).
+	shift := func(d time.Duration) {
+		t.Helper()
+		for _, op := range plan.Copy {
+			fi, err := os.Stat(op.Src)
+			if err != nil {
+				t.Fatal(err)
+			}
+			when := fi.ModTime().Add(d)
+			if err := os.Chtimes(op.Dst, when, when); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	for _, d := range []time.Duration{-time.Hour, time.Hour, -time.Hour + time.Second, time.Hour - 2*time.Second} {
+		shift(d)
+		p := planFor(t, o)
+		if len(p.Copy) != 0 || len(p.Skip) != 3 {
+			t.Fatalf("shift %v: copy %d skip %d; want 0/3", d, len(p.Copy), len(p.Skip))
+		}
+		if why := p.Skip[0].Reason; !strings.Contains(why, "one hour") {
+			t.Errorf("shift %v: reason %q does not say it was the hour", d, why)
+		}
+		for _, a := range p.Art {
+			// Red has no cover, so its sidecars are always "missing";
+			// the hour must not make Blue's "newer".
+			if a.Write && strings.Contains(a.Reason, "newer") {
+				t.Errorf("shift %v: sidecars for %s stale (%s)", d, a.Album, a.Reason)
+			}
+		}
+	}
+
+	// An hour and five seconds is a real edit.
+	shift(-time.Hour - 5*time.Second)
+	if p := planFor(t, o); len(p.Copy) != 3 {
+		t.Fatalf("an hour and five seconds: copy %d; want 3", len(p.Copy))
+	}
+}
