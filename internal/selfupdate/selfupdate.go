@@ -389,13 +389,13 @@ func stage(target, src string) (string, error) {
 }
 
 // CleanOld deletes what an earlier update left in dir: the renamed-away
-// programs (core*.old.exe, and core*.old elsewhere) and any staged file a
-// failed swap could not remove. Only names this package makes are
+// programs (core*.old.exe — only Windows makes them) and any staged file
+// a failed swap could not remove. Only names this package makes are
 // touched; a file still in use stays for the next start. It returns what
 // it deleted.
 func CleanOld(dir string) []string {
 	var gone []string
-	for _, pat := range []string{"core*.old.exe", "core*.old", ".core*.new-*"} {
+	for _, pat := range []string{"core*.old.exe", ".core*.new-*"} {
 		m, _ := filepath.Glob(filepath.Join(dir, pat))
 		for _, p := range m {
 			if os.Remove(p) == nil {
