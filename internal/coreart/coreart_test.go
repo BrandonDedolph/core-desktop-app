@@ -192,6 +192,36 @@ func TestValid(t *testing.T) {
 	}
 }
 
+// ValidHeader is Valid without the pixels: for every file Valid judges, the
+// first HeaderLen bytes and the length must get the same verdict — including
+// the short file, which is the one a header-only reader could get wrong by
+// trusting the dimensions it read.
+func TestValidHeaderAgreesWithValid(t *testing.T) {
+	img, err := FromPicture(&flac.Picture{MIME: "image/png", Data: twoByTwoPNG(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	art, thm := Render(img, ArtSize), Render(img, ThumbSize)
+	badMagic := append([]byte(nil), thm...)
+	badMagic[1] = 'X'
+	cases := map[string][]byte{
+		"art": art, "thm": thm, "bad magic": badMagic,
+		"short": thm[:len(thm)-2], "header only": thm[:HeaderLen],
+		"under header": thm[:HeaderLen-1], "empty": nil,
+	}
+	for name, b := range cases {
+		for _, size := range []int{0, ArtSize, ThumbSize} {
+			head := b
+			if len(head) > HeaderLen {
+				head = head[:HeaderLen]
+			}
+			if got, want := ValidHeader(head, int64(len(b)), size), Valid(b, size); got != want {
+				t.Errorf("%s at size %d: ValidHeader %v, Valid %v", name, size, got, want)
+			}
+		}
+	}
+}
+
 // buildFLACWithPicture assembles a real (silent) FLAC carrying pics.
 func buildFLACWithPicture(t *testing.T, pics []flac.Picture) []byte {
 	t.Helper()

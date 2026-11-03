@@ -128,6 +128,20 @@ func m3uLine(e string) (string, error) {
 	return line, nil
 }
 
+// ResolveM3ULine is the volume-root-relative path one playlist line names,
+// resolved the way the firmware resolves it (canonicalM3UPath): either
+// separator, a drive letter or a leading slash for the volume root, a bare
+// relative line against Music/Playlists. ok is false for a blank line, a
+// directive, or a path the firmware rejects. It is what a reader of a
+// playlist already on the iPod needs to ask whether a line names a file.
+func ResolveM3ULine(line string) (string, bool) {
+	line = strings.Trim(strings.TrimSuffix(strings.ReplaceAll(line, "\\", "/"), "\r"), " \t")
+	if line == "" || line[0] == '#' {
+		return "", false
+	}
+	return canonicalM3UPath(line)
+}
+
 // canonicalM3UPath is path_build() (core/fs/m3u.c:190-291) for the one case
 // WriteM3U8 needs: how long the path will be once the firmware has resolved
 // it. Entries written by this package are already absolute and clean, so the

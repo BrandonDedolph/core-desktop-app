@@ -214,7 +214,16 @@ func Render(img image.Image, size int) []byte {
 // other size the firmware would tolerate but resample". size <= 0 asks only
 // the firmware's own question.
 func Valid(b []byte, size int) bool {
-	if len(b) < HeaderLen {
+	return ValidHeader(b, int64(len(b)), size)
+}
+
+// ValidHeader is Valid asked of a sidecar's first HeaderLen bytes and the
+// file's length, which is all the firmware's test looks at: the pixels
+// themselves are never checked, so a reader that only wants the verdict
+// (the doctor, over every album on a device) need not read them.
+func ValidHeader(head []byte, fileSize int64, size int) bool {
+	b := head
+	if len(b) < HeaderLen || fileSize < HeaderLen {
 		return false
 	}
 	if b[0] != 'C' || b[1] != 'A' || b[2] != 'R' || b[3] != 'T' {
@@ -225,7 +234,7 @@ func Valid(b []byte, size int) bool {
 	if w <= 0 || h <= 0 || w > MaxDim || h > MaxDim {
 		return false
 	}
-	if HeaderLen+w*h*2 > len(b) {
+	if int64(HeaderLen+w*h*2) > fileSize {
 		return false
 	}
 	if size > 0 && (w != size || h != size) {

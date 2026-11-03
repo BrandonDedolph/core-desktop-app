@@ -278,6 +278,9 @@ type VolumeReport struct {
 	// it did.
 	Note   string
 	Checks []Check
+	// recs are the index's records when it decoded, kept for
+	// LibraryChecks so the index is read once per refresh, not twice.
+	recs []cidx.Record
 }
 
 // CheckVolume runs every volume check. An empty volume is not an error:
@@ -380,7 +383,7 @@ func checkIndex(r *report, rep *VolumeReport, path string) {
 		r.line(Skip, "caps", "the index did not decode")
 		return
 	}
-	rep.IndexOK = true
+	rep.IndexOK, rep.recs = true, recs
 	r.line(OK, "index", "%s: %d bytes, %d records, header and CRC OK",
 		devicefs.IndexName, len(b), len(recs))
 
