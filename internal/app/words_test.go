@@ -24,7 +24,7 @@ func frontStrings(u *UI) []string {
 	status, _ := u.statusLine()
 	out := []string{name, model, status, u.st.PrimaryLabel(), u.Title(), u.st.StatusLine(),
 		u.tabNote(), u.appleBackupPromise(), more(3)}
-	for _, t := range []Tab{TabAlbums, TabLibrary, TabDetails} {
+	for _, t := range []Tab{TabAlbums, TabFix, TabDetails} {
 		out = append(out, t.String())
 	}
 	// The iPod tab's rows, with Advanced closed: Advanced is the one
@@ -89,10 +89,10 @@ func TestNoOldWordsOnTheFront(t *testing.T) {
 			th := th
 			u := NewUI(Options{Theme: &th})
 			u.SetState(mk())
-			for _, tab := range []Tab{TabAlbums, TabLibrary, TabDetails} {
+			for _, tab := range []Tab{TabAlbums, TabFix, TabDetails} {
 				u.st.Tab = tab
 				for _, v := range musicViews {
-					// The tab row's note is the view's own on the Music tab.
+					// The tab row's note is the view's own on the Library tab.
 					u.st.View = v
 					for _, s := range frontStrings(u) {
 						for _, bad := range forbidden {
@@ -187,11 +187,11 @@ func TestShortName(t *testing.T) {
 }
 
 // The tabs are named for what they are for (the owner's decision in the
-// app pass): Music, Fix, Summary — and the Fix count reads "Fix · 16" (the
+// app pass): Library, Fix, Summary — and the Fix count reads "Fix · 16" (the
 // canned report: 13 from the first checks plus two small covers and one
 // duplicate pair).
 func TestTabNames(t *testing.T) {
-	want := map[Tab]string{TabAlbums: "Music", TabLibrary: "Fix", TabDetails: "Summary"}
+	want := map[Tab]string{TabAlbums: "Library", TabFix: "Fix", TabDetails: "Summary"}
 	for tab, name := range want {
 		if tab.String() != name {
 			t.Errorf("tab %d is %q, want %q", tab, tab.String(), name)

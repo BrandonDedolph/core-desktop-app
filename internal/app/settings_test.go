@@ -284,7 +284,7 @@ func TestTheLastTab(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), "config.json")
 	u = NewUI(Options{Backend: &fakeBackend{}, ConfigPath: path})
-	u.st.Tab = TabLibrary
+	u.st.Tab = TabFix
 	u.Layout(newTestContext(900, 600))
 	if got := string(readKeys(t, path)["last_tab"]); got != `"fix"` {
 		t.Errorf("last_tab = %s", got)
@@ -300,7 +300,7 @@ func TestTheLastTab(t *testing.T) {
 	if _, ok := keys["last_tab"]; ok || string(keys["last_tab_remember"]) != "false" {
 		t.Errorf("remember off: %v", keys)
 	}
-	u.st.Tab = TabLibrary
+	u.st.Tab = TabFix
 	u.Layout(newTestContext(900, 600))
 	if _, ok := readKeys(t, path)["last_tab"]; ok {
 		t.Error("a tab was saved with remembering off")

@@ -26,7 +26,7 @@ func TestOnlyRowsWithSomethingAreDrawn(t *testing.T) {
 		}
 	}
 	u := newTestUI(&fakeBackend{})
-	u.st.Report, u.st.Tab = rep, TabLibrary
+	u.st.Report, u.st.Tab = rep, TabFix
 	u.st.Category = CatArt // empty: the selection moves
 	u.keepSelectionVisible()
 	u.Layout(newTestContext(900, 600))

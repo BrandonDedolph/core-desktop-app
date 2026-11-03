@@ -280,7 +280,7 @@ type UI struct {
 	editingName bool
 
 	browseBtn widget.Clickable
-	// addBtn is Add music…, on the Music tab's row or its empty state
+	// addBtn is Add music…, on the Library tab's row or its empty state
 	// (never both on one frame).
 	addBtn                                      widget.Clickable
 	dryRunBtn, pruneBtn                         widget.Clickable
@@ -415,7 +415,7 @@ type UI struct {
 	devLogReads  sync.WaitGroup
 	loc          *time.Location
 
-	// The Music tab's views (music.go). cat is the groupings of
+	// The Library tab's views (music.go). cat is the groupings of
 	// catAlbums, rebuilt when State.Albums is replaced (catalog()).
 	// artistThumbs is the artist pictures' cache — mosaics and Deezer
 	// photos — and coverLoad the one album-cover decode both caches use.
@@ -1034,7 +1034,7 @@ func (u *UI) events(gtx C) {
 
 	// The tabs answer whether a job is running or not: looking at the
 	// log while a sync runs is exactly what the Details tab is for.
-	for i, t := range []Tab{TabAlbums, TabLibrary, TabDetails} {
+	for i, t := range []Tab{TabAlbums, TabFix, TabDetails} {
 		if u.tabClicks[i].Clicked(gtx) {
 			u.st.Tab = t
 		}
@@ -1112,7 +1112,7 @@ func (u *UI) events(gtx C) {
 	}
 	u.logEvents(gtx)
 	if u.folderLink.Clicked(gtx) && u.st.Phase() == PhaseReady {
-		u.st.Tab = TabLibrary
+		u.st.Tab = TabFix
 		u.focusSource = true
 	}
 	if u.advancedBtn.Clicked(gtx) {
@@ -1723,7 +1723,7 @@ func (u *UI) tabBar(gtx C) D {
 	if u.st.Phase() != PhaseReady {
 		return u.hairline(gtx)
 	}
-	tabs := []Tab{TabAlbums, TabLibrary, TabDetails}
+	tabs := []Tab{TabAlbums, TabFix, TabDetails}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx C) D {
 			return layout.Inset{Left: unit.Dp(14), Right: unit.Dp(14), Bottom: unit.Dp(2)}.
@@ -1754,7 +1754,7 @@ func (u *UI) tabBar(gtx C) D {
 func (u *UI) tabItem(gtx C, t Tab, idx int) D {
 	on := u.st.Tab == t
 	label := t.String()
-	if t == TabLibrary {
+	if t == TabFix {
 		if n := u.fixCount(); n > 0 {
 			label += " · " + itoa(n)
 		}
@@ -1812,7 +1812,7 @@ func (u *UI) fixCount() int {
 // taken, or how many albums the grid holds.
 func (u *UI) tabNote() string {
 	switch u.st.Tab {
-	case TabLibrary:
+	case TabFix:
 		if u.st.Report == nil {
 			return "nothing scanned yet"
 		}
@@ -1986,7 +1986,7 @@ func (u *UI) body(gtx C) D {
 		return u.installPane(gtx)
 	}
 	switch u.st.Tab {
-	case TabLibrary:
+	case TabFix:
 		return u.libraryPane(gtx)
 	case TabDetails:
 		return u.ipodPane(gtx)

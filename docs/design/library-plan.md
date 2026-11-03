@@ -21,14 +21,14 @@ Where the app stands, honestly:
 
 | Job | Today | Gap |
 |---|---|---|
-| 1 Library on a drive | the music folder, the Fix tab (names, folders, covers, discs, duplicates) | the Music tab is an album grid only; no way to add music except copying folders in by hand and running Fix; external drives work but the chooser (D1) is the first time one can be picked without typing |
+| 1 Library on a drive | the music folder, the Fix tab (names, folders, covers, discs, duplicates) | the Library tab is an album grid only; no way to add music except copying folders in by hand and running Fix; external drives work but the chooser (D1) is the first time one can be picked without typing |
 | 2 What is on the iPod | Sync, Preview, Sync and remove, the grid's NEW/CHANGED/on-iPod states | no per-album "take this off the iPod" without removing it from the folder; no view of the iPod's own library as the iPod sees it |
 | 3 Metadata in the library | Fix renames files *from* tags, organizes folders, replaces covers | the tags themselves cannot be edited (title, artist, album, genre, year, track number) |
 | 4 Firmware | Install, Update, flash an image, backups, retention | — |
 | 5 Fix issues | the Fix tab for the folder; `core doctor` for the iPod (CLI only; the window runs the same checks on Refresh and shows one boot line) | the iPod's problems are not listed in the window, and nothing offers to repair them |
 | 6 The logs | the window's log (drawer, copy, file) | the iPod's log (`CORELOG.BIN`) is readable by `tools/make_log.py` in the firmware repo and decoded by `devicefs.ReadLogRing` for one boot fact, but nobody can read it in the window |
 
-## L1 — the Music tab has views
+## L1 — the Library tab has views
 
 *The ask: "it shouldn't just be a list of albums — an artist list (get
 artist art), genres, songs, albums."*
@@ -131,8 +131,8 @@ switch to the Fix tab, and run Fix all. That works, and it is also why the
 process needs a front door: nothing tells a person that this is the
 process.
 
-**Add music…** — in the ··· menu, on the Music tab's empty state, and as a
-button at the top of the Music tab beside the view switch. It opens the
+**Add music…** — in the ··· menu, on the Library tab's empty state, and as a
+button at the top of the Library tab beside the view switch. It opens the
 chooser (D1) in folder mode: "Choose a folder of music to add". The folder
 can be anything — a ripped CD, a download, a whole second library, a USB
 stick. Then one sheet, **Adding to your library**, in three stages, all

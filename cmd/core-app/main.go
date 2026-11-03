@@ -61,7 +61,7 @@ func main() {
 				"album (the album sheet, a track playing), playing (the same, sheet closed: the footer's bar), "+
 				"preview (the sync preview), lowres (the Fix tab on its small covers), lowres-after (the same after Use this cover), "+
 				"duplicates (the duplicate-album chooser), tidy (the Fix tab with nothing to fix), "+
-				"artists, genres, songs (the Music tab's views), genre (one genre's albums)")
+				"artists, genres, songs (the Library tab's views), genre (one genre's albums)")
 		size     = flag.String("size", "900x600", "--screenshot size, WxH")
 		tabName  = flag.String("tab", "", "Which tab --screenshot shows: music, fix, summary (also albums, library, details; default: the state's own)")
 		viewName = flag.String("view", "", "Which Music view --screenshot shows: albums, artists, genres, songs (default: the state's own)")
@@ -112,7 +112,7 @@ func main() {
 		case "albums", "music":
 			st.Tab = app.TabAlbums
 		case "library", "fix":
-			st.Tab = app.TabLibrary
+			st.Tab = app.TabFix
 		case "details", "summary":
 			st.Tab = app.TabDetails
 		default:

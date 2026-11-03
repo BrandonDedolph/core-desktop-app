@@ -72,7 +72,7 @@ func demoSongs(a *Album) {
 	}
 }
 
-// ArtistsState is the demo on the Music tab's Artists view.
+// ArtistsState is the demo on the Library tab's Artists view.
 func ArtistsState() State { st := DemoState(); st.View = ViewArtists; return st }
 
 // GenresState is the demo on the Genres view.

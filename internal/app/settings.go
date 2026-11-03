@@ -159,7 +159,7 @@ const (
 	setOnline         = "Look for covers on the internet"
 	setOnlineSub      = "iTunes, then MusicBrainz and the Cover Art Archive; off, only a cover file in the album folder is used"
 	setArtistTick     = "Artist pictures from Deezer"
-	setArtistSub      = "the Music tab's artist photos from Deezer, whose photos they are, for private use; kept in this computer's cache, never put in the music folder or on the iPod. Off, an artist's picture is a mosaic of their covers"
+	setArtistSub      = "the Library tab's artist photos from Deezer, whose photos they are, for private use; kept in this computer's cache, never put in the music folder or on the iPod. Off, an artist's picture is a mosaic of their covers"
 	setArtistOffline  = "needs Look for covers on the internet, which is off: an artist's picture is a mosaic of their covers"
 	setDuplicates     = "Duplicates"
 	setDupTick        = "Check for duplicate albums"

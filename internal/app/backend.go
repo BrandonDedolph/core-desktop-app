@@ -200,7 +200,7 @@ type RealBackend struct {
 	// the album folder only and nothing here asks iTunes, MusicBrainz or
 	// the Cover Art Archive — not even for a thumbnail.
 	NoOnlineArt bool
-	// ArtistPictures is artist_pictures: the Music tab's artist tiles may
+	// ArtistPictures is artist_pictures: the Library tab's artist tiles may
 	// show Deezer's photo. It takes NoOnlineArt off as well — both, or
 	// ArtistPhoto asks nobody.
 	ArtistPictures bool

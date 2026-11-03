@@ -9,7 +9,7 @@ sidecars, write the index, flash the firmware, fetch updates.
 - **`core-app`** is the desktop window (Gio v0.8.0). It finds the iPod by itself — a 2-second
   poll, so plugging one in is the whole gesture — and stops for exactly one thing: an iPod still
   running Apple's firmware, which gets a single screen and an **Install Core** button. Once Core
-  is on it: a header with the iPod's name, firmware, free space and one verb-first button; Music
+  is on it: a header with the iPod's name, firmware, free space and one verb-first button; Library
   (the grid), Fix (the music folder and what is wrong with it) and Summary (five rows and an
   Advanced disclosure); a player; the log as a drawer on every screen; and a "···" menu. Linen
   and Onyx, the device's palettes, in Nunito. It links the same internal packages as the CLI

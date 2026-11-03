@@ -217,7 +217,7 @@ func TestAddProgressInTheHeader(t *testing.T) {
 	}
 }
 
-// The button at the right of the Music tab's row, and the one on the empty
+// The button at the right of the Library tab's row, and the one on the empty
 // grid, both open the chooser.
 func TestAddMusicButtons(t *testing.T) {
 	for _, albums := range [][]Album{nil, {{Title: "Blue", Device: "Joni Mitchell - Blue"}}} {

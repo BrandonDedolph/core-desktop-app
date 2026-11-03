@@ -82,7 +82,7 @@ type Config struct {
 	// is the owner's opt-in, and it needs OnlineArt too: both on, or no
 	// request goes out and an artist's picture is the mosaic of covers.
 	ArtistPictures bool `json:"artist_pictures,omitempty"`
-	// MusicView is the Music tab's view: "albums", "artists", "genres" or
+	// MusicView is the Library tab's view: "albums", "artists", "genres" or
 	// "songs"; absent is albums. Saved when it changes, restored at start.
 	MusicView string `json:"music_view,omitempty"`
 	// CheckDuplicates is "Check for duplicate albums"; absent is on.
@@ -154,7 +154,7 @@ func (c Config) WindowDp() (w, h int) {
 // tabKey is a tab as config.json's last_tab spells it.
 func tabKey(t Tab) string {
 	switch t {
-	case TabLibrary:
+	case TabFix:
 		return "fix"
 	case TabDetails:
 		return "summary"
@@ -166,7 +166,7 @@ func tabKey(t Tab) string {
 func tabFromKey(s string) Tab {
 	switch s {
 	case "fix":
-		return TabLibrary
+		return TabFix
 	case "summary":
 		return TabDetails
 	}

@@ -17,12 +17,12 @@ import (
 	"gioui.org/widget/material"
 )
 
-// The Music tab: the view switch under the tab row, and the four views it
+// The Library tab: the view switch under the tab row, and the four views it
 // switches between (library plan, L1). Albums is the grid as it always was;
 // Artists is the same grid of artists; Genres is a list that opens onto a
 // grid of one genre's albums; Songs is a table.
 
-// The Music tab's words, in one place so the words test reads what is drawn.
+// The Library tab's words, in one place so the words test reads what is drawn.
 const (
 	musicSearchHint = "Search songs"
 	musicNoMatch    = "No songs match the search."
@@ -110,7 +110,7 @@ func (u *UI) rememberView() {
 	}
 }
 
-// musicEvents is the Music tab's half of the frame.
+// musicEvents is the Library tab's half of the frame.
 func (u *UI) musicEvents(gtx C) {
 	for i := range u.viewClicks {
 		if u.viewClicks[i].Clicked(gtx) {
@@ -184,7 +184,7 @@ func (u *UI) songPlaying(a *Album, s *Song) bool {
 
 // --- drawing ----------------------------------------------------------------
 
-// musicPane is the Music tab: the switch, then the view.
+// musicPane is the Library tab: the switch, then the view.
 func (u *UI) musicPane(gtx C) D {
 	if len(u.st.Albums) == 0 {
 		return u.gridEmpty(gtx)

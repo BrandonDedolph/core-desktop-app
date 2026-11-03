@@ -158,7 +158,7 @@ func TestSnapshotOnyx(t *testing.T) {
 	}
 }
 
-// TestSnapshotMusicViews renders the Music tab's four views — and one genre
+// TestSnapshotMusicViews renders the Library tab's four views — and one genre
 // open — in both palettes, at both sizes: the switch, the artist grid, the
 // genre rows with their cover strips, and the song table with its search
 // field are each the widest thing on their screen at the 720 dp minimum.
