@@ -475,3 +475,61 @@ func TestCheckBootReadsTheVolume(t *testing.T) {
 		t.Errorf("no volume: %+v", rep.Checks)
 	}
 }
+
+// Boots reads EVERY boot with the parser LastBoot uses, not only the newest:
+// three boots of three builds and three clocks come back newest first, each
+// with its own build, time, end and lines.
+func TestBootsEachBootParsed(t *testing.T) {
+	at := uint32(bootAt.Unix())
+	ring, err := devicefs.ReadLogRing(synthLog(t, 8, fixtureLogID,
+		blk{0, 1, bootText(1, tsNone(at-7200), named("v0.2.0")), false},
+		blk{1, 1, "core: suspend: entering\n", true},
+		blk{2, 2, bootText(2, tsSet(at-3600), named("v0.2.1"), counted(907, 101)), false},
+		blk{3, 2, "core: standby: entering\n", true},
+		blk{4, 3, bootText(3, tsNone(at), named("v0.2.2")), false},
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	boots := Boots(ring)
+	if len(boots) != 3 {
+		t.Fatalf("%d boots, want 3", len(boots))
+	}
+	want := []struct {
+		id      uint16
+		version string
+		at      time.Time
+		end     string
+		final   bool
+		seqs    []uint32
+	}{
+		{3, "v0.2.2", bootAt, "", false, []uint32{4}},
+		{2, "v0.2.1", bootAt.Add(-time.Hour), "standby", true, []uint32{2, 3}},
+		{1, "v0.2.0", bootAt.Add(-2 * time.Hour), "sleep", true, []uint32{0, 1}},
+	}
+	for i, w := range want {
+		b := boots[i]
+		f := b.Facts
+		if f.ID != w.id || f.Version != w.version || f.BuildID != w.version+"-5-g39fdaf9" ||
+			!f.At.Equal(w.at) || f.End != w.end || f.Final != w.final || !f.Start {
+			t.Errorf("boot %d facts = %+v", w.id, f)
+		}
+		if len(b.Entries) != len(w.seqs) {
+			t.Fatalf("boot %d: %d entries, want %d", w.id, len(b.Entries), len(w.seqs))
+		}
+		for j, e := range b.Entries {
+			if e.Seq != w.seqs[j] || e.Boot != w.id {
+				t.Errorf("boot %d entry %d = seq %d boot %d", w.id, j, e.Seq, e.Boot)
+			}
+		}
+	}
+	if f := boots[1].Facts; !f.Counted || f.Songs != 907 || f.Albums != 101 {
+		t.Errorf("boot 2's library line was not read: %+v", f)
+	}
+	if last, _ := LastBoot(ring); last != boots[0].Facts {
+		t.Errorf("LastBoot = %+v, Boots[0] = %+v", last, boots[0].Facts)
+	}
+	if got := Boots(devicefs.LogRing{}); len(got) != 0 {
+		t.Errorf("an empty ring has %d boots", len(got))
+	}
+}

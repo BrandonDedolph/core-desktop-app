@@ -159,10 +159,15 @@ func (u *UI) setTheme(t Theme) {
 	u.saveConfig()
 }
 
-// copyLog puts the whole log on the clipboard.
+// copyLog puts the tab on screen on the clipboard: the whole of this
+// window's log, or the iPod's as the tab shows it.
 func (u *UI) copyLog(gtx C) {
-	text := strings.Join(u.st.Log, "\n") + "\n"
+	text := u.shownLogText()
 	gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(text))})
+	if u.st.LogTab == LogTabIPod {
+		u.st.Logf("copied the iPod's log (%s) to the clipboard", bootCount(u.devLogBoots()))
+		return
+	}
 	u.st.Logf("copied %d log lines to the clipboard", len(u.st.Log))
 }
 

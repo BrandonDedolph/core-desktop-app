@@ -110,7 +110,38 @@ func LastBoot(r devicefs.LogRing) (BootFacts, bool) {
 	for i > 0 && r.Entries[i-1].Boot == newest.Boot {
 		i--
 	}
-	run := r.Entries[i:]
+	return factsOf(r.Entries[i:]), true
+}
+
+// BootLog is one boot's share of the log: what its lines say about it, and
+// the lines themselves in the dump tool's order and decoding.
+type BootLog struct {
+	Facts   BootFacts
+	Entries []devicefs.LogEntry
+}
+
+// Boots splits a decoded ring into its boots, NEWEST FIRST, each one a run of
+// consecutive blocks with the same boot id — the runs the dump tool marks
+// with "=== boot N ===". Every boot's facts come from the same parser as
+// LastBoot's, so the newest one here is LastBoot's answer. Empty for an empty
+// ring.
+func Boots(r devicefs.LogRing) []BootLog {
+	ents := devicefs.OrderedLogEntries(r)
+	var out []BootLog
+	for end := len(r.Entries); end > 0; {
+		start := end - 1
+		for start > 0 && r.Entries[start-1].Boot == r.Entries[end-1].Boot {
+			start--
+		}
+		out = append(out, BootLog{Facts: factsOf(r.Entries[start:end]), Entries: ents[start:end]})
+		end = start
+	}
+	return out
+}
+
+// factsOf parses one boot's run of blocks (non-empty, one boot id).
+func factsOf(run []devicefs.LogBlock) BootFacts {
+	last := run[len(run)-1]
 	var text bytes.Buffer
 	for _, b := range run {
 		text.Write(b.Text)
@@ -121,14 +152,14 @@ func LastBoot(r devicefs.LogRing) (BootFacts, bool) {
 		}
 	}
 	f := BootFacts{
-		ID:       newest.Boot,
+		ID:       last.Boot,
 		FirstSeq: run[0].Seq,
-		LastSeq:  newest.Seq,
+		LastSeq:  last.Seq,
 		Blocks:   len(run),
-		Final:    newest.Final,
+		Final:    last.Final,
 	}
 	parseBootText(&f, text.String())
-	return f, true
+	return f
 }
 
 func parseBootText(f *BootFacts, s string) {

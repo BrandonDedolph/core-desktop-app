@@ -365,6 +365,21 @@ type UI struct {
 	rescanQueued bool
 	win          winState
 	savedTab     Tab
+
+	// The log drawer's tabs and its iPod tab (devlog.go). devLog is the
+	// last read, UI goroutine only; newDevLog is a read on its way, under
+	// mu. devLogShown is whether the tab was on screen last frame (its
+	// coming into view is what reads); devLogQueued is a read waiting for a
+	// job that touches the iPod to end. devLogReads is the reads in flight,
+	// for the tests. loc is the zone the dividers' times are shown in.
+	logTabClicks [2]widget.Clickable
+	devLogList   widget.List
+	devLog       *devLogRead
+	newDevLog    *devLogRead
+	devLogShown  bool
+	devLogQueued bool
+	devLogReads  sync.WaitGroup
+	loc          *time.Location
 }
 
 // NewUI builds the window's state.
@@ -387,6 +402,7 @@ func NewUI(o Options) *UI {
 		cfgPath:    o.ConfigPath,
 		invalidate: o.Invalidate,
 		now:        time.Now,
+		loc:        time.Local,
 	}
 	if u.invalidate == nil {
 		u.invalidate = func() {}
@@ -397,6 +413,7 @@ func NewUI(o Options) *UI {
 	u.prevList.Axis = layout.Vertical
 	u.dlgBody.Axis = layout.Vertical
 	u.logList.Axis = layout.Vertical
+	u.devLogList.Axis = layout.Vertical
 	u.itemList.Axis = layout.Vertical
 	// The log is a transcript: the interesting end is the bottom, and a
 	// pane that stays at the top while a sync scrolls past is a pane
@@ -562,7 +579,13 @@ func (u *UI) drain() {
 	u.askQueue = nil
 	tracks, ended, playErr := u.newTracks, u.trackDone, u.trackErr
 	u.newTracks, u.trackDone, u.trackErr = nil, false, nil
+	devLog := u.newDevLog
+	u.newDevLog = nil
 	u.mu.Unlock()
+
+	if devLog != nil {
+		u.devLog = devLog
+	}
 
 	if tracks != nil {
 		u.applyTracks(tracks)
@@ -613,6 +636,7 @@ func (u *UI) drain() {
 	for _, e := range events {
 		u.st.Apply(e)
 		u.afterJob(e)
+		u.devLogAfter(e)
 	}
 	switch {
 	case path != "" && pathFor == JobSync:
@@ -1589,37 +1613,48 @@ func (u *UI) tabBar(gtx C) D {
 // tabItem is one tab: the word, and a 2 px rule under the chosen one.
 func (u *UI) tabItem(gtx C, t Tab, idx int) D {
 	on := u.st.Tab == t
-	col := u.pal.Muted
-	if on {
-		col = u.pal.Ink
-	}
 	label := t.String()
 	if t == TabLibrary {
 		if n := u.fixCount(); n > 0 {
 			label += " · " + itoa(n)
 		}
 	}
-	return u.tabClicks[idx].Layout(gtx, func(gtx C) D {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(func(gtx C) D {
-				return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx C) D {
-					l := material.Label(u.th, unit.Sp(13), label)
-					l.Color = col
-					l.MaxLines = 1
-					return l.Layout(gtx)
-				})
-			}),
-			layout.Rigid(func(gtx C) D {
-				h := gtx.Dp(2)
-				c := u.pal.Surface
-				if on {
-					c = u.pal.Ink
-				}
-				sz := image.Pt(gtx.Constraints.Min.X, h)
-				paint.FillShape(gtx.Ops, c, clip.Rect{Max: sz}.Op())
-				return D{Size: sz}
-			}),
-		)
+	return u.tabWord(gtx, &u.tabClicks[idx], label, on, 13)
+}
+
+// tabWord is the tab row's style, for the tab bar and the log drawer: the
+// word, Ink when chosen and Muted when not, over a 2 px rule under the
+// chosen one.
+func (u *UI) tabWord(gtx C, click *widget.Clickable, label string, on bool, size unit.Sp) D {
+	col := u.pal.Muted
+	if on {
+		col = u.pal.Ink
+	}
+	return click.Layout(gtx, func(gtx C) D {
+		// The word first, so the rule under it can be as wide as the
+		// word: a Rigid child of a vertical Flex has Min.X 0, and a rule
+		// sized from it was zero pixels wide (the chosen tab was marked
+		// by its darker word alone, on every tab bar, until 2026-11-03).
+		m := op.Record(gtx.Ops)
+		word := layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx C) D {
+			l := material.Label(u.th, size, label)
+			l.Color = col
+			l.MaxLines = 1
+			return l.Layout(gtx)
+		})
+		wordC := m.Stop()
+		wordC.Add(gtx.Ops)
+		h := gtx.Dp(2)
+		c := u.pal.Surface
+		if on {
+			c = u.pal.Ink
+		}
+		sz := image.Pt(word.Size.X, h)
+		func() {
+			defer op.Offset(image.Pt(0, word.Size.Y)).Push(gtx.Ops).Pop()
+			paint.FillShape(gtx.Ops, c, clip.Rect{Max: sz}.Op())
+		}()
+		return D{Size: image.Pt(word.Size.X, word.Size.Y+h)}
 	})
 }
 

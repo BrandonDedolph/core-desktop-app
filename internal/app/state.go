@@ -370,6 +370,9 @@ type State struct {
 	Advanced bool
 	// LogOpen is the log drawer. A view field: never saved.
 	LogOpen bool
+	// LogTab is the drawer's tab: this window's log or the iPod's own
+	// (devlog.go). A view field: it lasts the session and is never saved.
+	LogTab LogTab
 	// CheckedAt is when the last update check answered, for the iPod
 	// tab's note ("checked for updates 3 min ago"); zero is never.
 	CheckedAt time.Time

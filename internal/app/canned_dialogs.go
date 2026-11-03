@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/BrandonDedolph/core-desktop-app/internal/devicefs"
 	"github.com/BrandonDedolph/core-desktop-app/internal/flasher"
@@ -13,7 +14,7 @@ import (
 // DialogKinds are the dialogs `core-app --screenshot --dialog KIND` can
 // put on screen, for review. They are drawn and nothing else: a canned
 // dialog has no job behind it, so nothing can be confirmed through one.
-var DialogKinds = []string{"write", "holding", "remove", "about", "album", "preview", "settings", "chooser"}
+var DialogKinds = []string{"write", "holding", "remove", "about", "album", "preview", "settings", "chooser", "ipodlog"}
 
 // cannedDialog builds one of DialogKinds against the state's device.
 func cannedDialog(u *UI, kind string) error {
@@ -66,6 +67,13 @@ func cannedDialog(u *UI, kind string) error {
 		return nil
 	case "chooser":
 		u.cannedChooser()
+		return nil
+	case "ipodlog":
+		// The log drawer open on The iPod, with two boots in it. Shown
+		// already, so the frame does not start a read of a volume that is
+		// not there; UTC, so the picture is the same on every machine.
+		u.st.LogOpen, u.st.LogTab = true, LogTabIPod
+		u.devLog, u.devLogShown, u.loc = cannedDeviceLog(u.st.Device.Volume), true, time.UTC
 		return nil
 	case "preview":
 		u.dlg = cannedPreview(u)

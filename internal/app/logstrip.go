@@ -76,9 +76,15 @@ func (u *UI) logEvents(gtx C) {
 	if u.copyBtn.Clicked(gtx) {
 		u.copyLog(gtx)
 	}
-	if u.clearLogBtn.Clicked(gtx) {
+	if u.clearLogBtn.Clicked(gtx) && u.st.LogTab == LogTabWindow {
 		u.st.Log = nil
 	}
+	for i := range u.logTabClicks {
+		if u.logTabClicks[i].Clicked(gtx) {
+			u.st.LogTab = LogTab(i)
+		}
+	}
+	u.devLogFrame()
 }
 
 // drawerLayer hangs the drawer above the footer, 40 % of the window tall.
@@ -94,8 +100,9 @@ func (u *UI) drawerLayer(gtx C) D {
 	return u.logPane(gtx)
 }
 
-// logPane is the drawer: a header row (count, Copy, Clear, close) and the
-// transcript in mono, scrolled to its end.
+// logPane is the drawer: a header row (the two tabs, a count, Copy, Clear,
+// close) and the tab's text — this window's transcript in mono, scrolled to
+// its end, or the iPod's own log (devlog.go), newest boot at the top.
 func (u *UI) logPane(gtx C) D {
 	u.logFrames++
 	sz := gtx.Constraints.Max
@@ -109,15 +116,31 @@ func (u *UI) logPane(gtx C) D {
 		Layout(gtx, func(gtx C) D {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx C) D {
+					ipod := u.st.LogTab == LogTabIPod
+					count := fmt.Sprintf("%d lines", len(u.st.Log))
+					buttons := []btn{{&u.copyBtn, "Copy", false, len(u.st.Log) > 0},
+						{&u.clearLogBtn, "Clear", false, len(u.st.Log) > 0}}
+					if ipod {
+						// The iPod's log is the device's: nothing here
+						// clears it.
+						count = ""
+						if n := u.devLogBoots(); n > 0 {
+							count = bootCount(n)
+						}
+						buttons = []btn{{&u.copyBtn, "Copy", false, u.devLogBoots() > 0}}
+					}
 					return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-						layout.Rigid(u.text(11.5, u.pal.Muted, fmt.Sprintf("Log · %d lines", len(u.st.Log)))),
-						layout.Flexed(1, func(gtx C) D { return D{Size: image.Pt(gtx.Constraints.Max.X, 0)} }),
 						layout.Rigid(func(gtx C) D {
-							return u.buttonRow(gtx,
-								btn{&u.copyBtn, "Copy", false, len(u.st.Log) > 0},
-								btn{&u.clearLogBtn, "Clear", false, len(u.st.Log) > 0},
-							)
+							return u.tabWord(gtx, &u.logTabClicks[LogTabWindow], LogTabWindow.String(), !ipod, 12)
 						}),
+						layout.Rigid(layout.Spacer{Width: unit.Dp(16)}.Layout),
+						layout.Rigid(func(gtx C) D {
+							return u.tabWord(gtx, &u.logTabClicks[LogTabIPod], LogTabIPod.String(), ipod, 12)
+						}),
+						layout.Rigid(layout.Spacer{Width: unit.Dp(14)}.Layout),
+						layout.Rigid(u.text(11.5, u.pal.Muted2, count)),
+						layout.Flexed(1, func(gtx C) D { return D{Size: image.Pt(gtx.Constraints.Max.X, 0)} }),
+						layout.Rigid(func(gtx C) D { return u.buttonRow(gtx, buttons...) }),
 						layout.Rigid(layout.Spacer{Width: unit.Dp(10)}.Layout),
 						layout.Rigid(func(gtx C) D {
 							return u.logCloseBtn.Layout(gtx, func(gtx C) D {
@@ -130,6 +153,9 @@ func (u *UI) logPane(gtx C) D {
 				}),
 				layout.Rigid(layout.Spacer{Height: unit.Dp(6)}.Layout),
 				layout.Flexed(1, func(gtx C) D {
+					if u.st.LogTab == LogTabIPod {
+						return u.devLogPane(gtx)
+					}
 					list := material.List(u.th, &u.logList)
 					list.Indicator.Color = u.pal.SelSub
 					return list.Layout(gtx, len(u.st.Log), func(gtx C, i int) D {
