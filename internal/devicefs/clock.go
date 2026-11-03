@@ -40,6 +40,7 @@ const (
 	pHostEpoch    = cfgPayloadLen + 0  // 48: u32 UTC seconds
 	pHostOffMin   = cfgPayloadLen + 4  // 52: i16 minutes
 	pTimeFlags    = cfgPayloadLen + 6  // 54: u8  (the firmware's)
+	pHostDST      = cfgPayloadLen + 7  // 55: u8  the host's DST flag + tag
 	pAppliedEpoch = cfgPayloadLen + 8  // 56: u32 (the firmware's)
 	pUTCOffMin    = cfgPayloadLen + 12 // 60: i16 (the firmware's)
 
@@ -59,6 +60,49 @@ type TimeStamp struct {
 	UTCOffMin    int16  // the device's display offset
 	Use24H       bool   // the device's Time Format setting
 	TimeInTitle  bool   // the device's Time in Title setting
+	// HostDST is byte 55 decoded: whether the host was on daylight time
+	// when it stamped (HostDSTUnknown for a record an older tool wrote, or
+	// whose tag no longer matches HostEpoch).
+	HostDST HostDST
+	// DSTOff is the device's Daylight Saving row, Off (time_flags bit 2,
+	// inverted on disk so every older record reads On).
+	DSTOff bool
+}
+
+// HostDST is the host's daylight-time state as byte 55 of the time block
+// carries it (core/kernel/timesync.h). The byte is the state in bits 0-1
+// and host_epoch & 0x3F in bits 2-7 — a tag binding the flag to the stamp it
+// was written with, because every tool copies the record verbatim: without
+// it an older tool re-stamping would leave this tool's flag beside its own
+// new epoch. A tag that does not match reads as unknown, and so does 0,
+// which is what every record before the byte existed holds.
+type HostDST uint8
+
+const (
+	HostDSTUnknown  HostDST = 0
+	HostDSTStandard HostDST = 1
+	HostDSTDaylight HostDST = 2
+)
+
+// hostDSTByte is byte 55 for a stamp at epoch: the state and the tag.
+func hostDSTByte(epoch uint32, dst bool) byte {
+	state := HostDSTStandard
+	if dst {
+		state = HostDSTDaylight
+	}
+	return byte((epoch&0x3F)<<2) | byte(state)
+}
+
+// decodeHostDST reads byte 55 against the epoch it should be tagged with.
+func decodeHostDST(epoch uint32, raw byte) HostDST {
+	if raw&^3 != byte((epoch&0x3F)<<2) {
+		return HostDSTUnknown
+	}
+	switch HostDST(raw & 3) {
+	case HostDSTStandard, HostDSTDaylight:
+		return HostDST(raw & 3)
+	}
+	return HostDSTUnknown
 }
 
 // Pending reports whether a stamp is waiting for the device to boot. It is the
@@ -82,20 +126,30 @@ func DecodeConfigTime(b []byte) (TimeStamp, bool) {
 	}
 	p := b[cfgOffPayload:]
 	flags := p[pTimeFlags]
+	epoch := binary.LittleEndian.Uint32(p[pHostEpoch:])
 	return TimeStamp{
-		HostEpoch:    binary.LittleEndian.Uint32(p[pHostEpoch:]),
+		HostEpoch:    epoch,
 		HostOffMin:   int16(binary.LittleEndian.Uint16(p[pHostOffMin:])),
 		AppliedEpoch: binary.LittleEndian.Uint32(p[pAppliedEpoch:]),
 		UTCOffMin:    int16(binary.LittleEndian.Uint16(p[pUTCOffMin:])),
 		Use24H:       flags&0x01 != 0,
 		TimeInTitle:  flags&0x02 != 0,
+		DSTOff:       flags&0x04 != 0,
+		HostDST:      decodeHostDST(epoch, p[pHostDST]),
 	}, true
 }
 
 // stampSlot is the patch itself, pure so it can be tested against
 // tools/make_config.py's stamp_slot() byte for byte: copy the record, grow the
-// declared length to cover the time block, write host_epoch / host_off_min,
-// bump the sequence, recompute the CRC. Nothing else moves.
+// declared length to cover the time block, write host_epoch / host_off_min
+// and the host's daylight-time byte, bump the sequence, recompute the CRC.
+// Nothing else moves.
+//
+// The daylight byte is what lets the firmware keep STANDARD time: the host's
+// offset is its current one (EDT is -240), and the device, which adds the
+// hour itself inside the US window, needs to know whether to take it off
+// (core/docs/design/settings-persistence.md, "Daylight saving (byte 55)").
+// Without it, a stamp from summer would show an hour fast on the iPod.
 func stampSlot(slot []byte, now time.Time) []byte {
 	rec := make([]byte, ConfigSlotBytes)
 	copy(rec, slot[:ConfigSlotBytes])
@@ -114,8 +168,10 @@ func stampSlot(slot []byte, now time.Time) []byte {
 	offMin := zoneOffsetMinutes(now)
 
 	p := rec[cfgOffPayload:]
-	binary.LittleEndian.PutUint32(p[pHostEpoch:], uint32(now.UTC().Unix()))
+	epoch := uint32(now.UTC().Unix())
+	binary.LittleEndian.PutUint32(p[pHostEpoch:], epoch)
 	binary.LittleEndian.PutUint16(p[pHostOffMin:], uint16(int16(offMin)))
+	p[pHostDST] = hostDSTByte(epoch, now.IsDST())
 
 	seq := binary.LittleEndian.Uint32(rec[cfgOffSeq:])
 	binary.LittleEndian.PutUint32(rec[cfgOffSeq:], seq+1)
@@ -127,6 +183,7 @@ func stampSlot(slot []byte, now time.Time) []byte {
 type Stamped struct {
 	When   time.Time // the moment written
 	OffMin int       // the UTC offset written, in minutes
+	DST    bool      // the host was on daylight time (byte 55 says so)
 	Slot   int       // the slot it landed in
 	Seq    uint32    // its sequence number
 }
@@ -173,6 +230,7 @@ func StampConfigTime(volumeRoot string, now time.Time) (Stamped, error) {
 	return Stamped{
 		When:   now,
 		OffMin: zoneOffsetMinutes(now), // what was WRITTEN, clamp included
+		DST:    now.IsDST(),
 		Slot:   dst,
 		Seq:    have + 1,
 	}, nil
