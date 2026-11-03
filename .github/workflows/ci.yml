@@ -104,7 +104,7 @@ jobs:
 
       - name: Test
         # -tags noaudio: the album sheet's player is a stub in the tests,
-        # so no test ever opens an audio device (README.md).
+        # so no test ever opens an audio device (docs/BUILD.md).
         run: go test -tags noaudio ./...
 
       # The same three again WITH the GUI files in. -tags novulkan is

@@ -24,7 +24,7 @@ it from there:
 | `core-linux-arm64` | Linux, ARM |
 
 To build it yourself instead, from a checkout of this repository: `go build -o core ./cmd/core`
-(see the [README](../README.md)). On macOS and Linux, `chmod +x` the downloaded file.
+(see [BUILD.md](BUILD.md)). On macOS and Linux, `chmod +x` the downloaded file.
 The examples below call it `core`.
 
 **The window.** `core-app` is the same thing as a desktop application. It ships beside the command
@@ -92,8 +92,10 @@ shows it within two seconds.
     music folder (not the Recycle Bin), and *Undo* moves it back. If the other album has songs the
     one you keep does not, the button warns and asks a second time. Empty `.core-trash` yourself
     when you are sure. *Fix all* never touches duplicates.
-- **Summary** is this iPod in six rows — Name (*Rename*), Firmware (*Update* / *Check*), Storage,
-  Library on the iPod (*Repair*), Hardware, Backups (*Show folder*, *Back up now*) — and an
+- **Summary** is this iPod in seven rows — Name (*Rename*), Firmware (*Update* / *Check*), Last
+  boot (which firmware the iPod actually started, from its own log, so a flash that did not boot
+  is caught here), Storage, Library on the iPod (*Repair*), Hardware, Backups (*Show folder*,
+  *Back up now*) — and an
   *Advanced* section with the disk path, the partition entry, the device files and *Flash this
   image* for an image file of your own.
   **Library on the iPod** is the library as the iPod will read it: "907 songs · 101 albums · 17
@@ -180,6 +182,8 @@ at all it says *Everything is on the iPod*. The same reasons go to the log, one 
 
 <p align="center"><img src="screens/core_app.png" alt="the core desktop app, Linen" width="640"></p>
 <p align="center"><img src="screens/core_app_onyx.png" alt="the core desktop app, Onyx" width="640"></p>
+<p align="center"><img src="screens/core_app_artists.png" alt="Library → Artists: a mosaic tile per artist" width="640"></p>
+<p align="center"><img src="screens/core_app_songs.png" alt="Library → Songs: every song in a sortable, searchable table" width="640"></p>
 <p align="center"><img src="screens/core_app_album.png" alt="an album open: cover, facts and tracklist, with the player below" width="640"></p>
 <p align="center"><img src="screens/core_app_fix.png" alt="the Fix tab: what is wrong with the music folder, and the preview of the fix" width="640"></p>
 <p align="center"><img src="screens/core_app_ipod.png" alt="the Summary tab" width="640"></p>
