@@ -1,6 +1,6 @@
-# Attach the ten binaries to a release of this repository.
+# Attach the ten binaries, and a checksum file for each, to a release of this repository.
 #
-# A release here is the desktop app and the command line: ten assets, built
+# A release here is the desktop app and the command line: ten binaries, built
 # HERE from the tag, and no core.ipod (the firmware is released from
 # BrandonDedolph/core-firmware, and `core update` fetches it from there).
 # Five `core` CLI binaries (pure Go, one Linux runner makes all five, with
@@ -13,6 +13,10 @@
 # linux/arm64 GUI) and macos-latest (both darwin GUIs, cross-compiled
 # between arm64 and amd64 with the SDK Xcode already has). The binaries are
 # stamped with `git describe --match 'v[0-9]*'`.
+#
+# Each binary goes up with a `<name>.sha256` beside it (sha256sum's format),
+# written by the job that built it: `core self-update` and the window's
+# Update the app verify against it and refuse a binary that has none.
 #
 # This workflow never creates the real release if it can help it: the human
 # runs `gh release create vX.Y.Z --notes-file …` (tools/release.py vX.Y.Z
@@ -85,13 +89,15 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          files="dist/core-linux-amd64 \
-                 dist/core-linux-arm64 \
-                 dist/core-darwin-amd64 \
-                 dist/core-darwin-arm64 \
-                 dist/core-windows-amd64.exe \
-                 dist/core-app-windows-amd64.exe \
-                 dist/core-app-linux-amd64"
+          bins="core-linux-amd64 core-linux-arm64 core-darwin-amd64 \
+                core-darwin-arm64 core-windows-amd64.exe \
+                core-app-windows-amd64.exe core-app-linux-amd64"
+          # One checksum file per binary, named in it as the asset is.
+          files=""
+          for b in $bins; do
+            (cd dist && sha256sum "$b" > "$b.sha256")
+            files="$files dist/$b dist/$b.sha256"
+          done
 
           # 10 minutes: 40 polls, 15s apart. The human flow is
           # `git push origin main $TAG` and then `gh release create $TAG
@@ -126,7 +132,7 @@ jobs:
   #
   # continue-on-error because the arm64 runner label is not available on
   # every plan. A release that is missing one GUI binary and says so
-  # (tools/release.py vX.Y.Z --check lists the ten slots and names
+  # (tools/release.py vX.Y.Z --check lists the twenty slots and names
   # the empty ones) is better than a tag push that fails outright and
   # leaves the other nine unattached.
   # -------------------------------------------------------------------
@@ -163,7 +169,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
-        run: gh release upload "$TAG" dist/core-app-linux-arm64 --clobber
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum core-app-linux-arm64 > core-app-linux-arm64.sha256)
+          gh release upload "$TAG" dist/core-app-linux-arm64 \
+            dist/core-app-linux-arm64.sha256 --clobber
 
   # -------------------------------------------------------------------
   # core-app for macOS. Cocoa is cgo; Xcode's SDK carries both slices,
@@ -222,9 +232,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
+          set -euo pipefail
+          for b in core-app-darwin-amd64 core-app-darwin-arm64; do
+            (cd dist && shasum -a 256 "$b" > "$b.sha256")
+          done
           gh release upload "$TAG" \
-            dist/core-app-darwin-amd64 \
-            dist/core-app-darwin-arm64 --clobber
+            dist/core-app-darwin-amd64 dist/core-app-darwin-amd64.sha256 \
+            dist/core-app-darwin-arm64 dist/core-app-darwin-arm64.sha256 --clobber
           echo
           echo "assets now on $TAG:"
           gh release view "$TAG" --json assets -q '.assets[].name'
