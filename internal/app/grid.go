@@ -85,6 +85,11 @@ func AlbumsFromPlan(plan *syncer.Plan) []Album {
 		a.Tracks++
 		a.Copy++
 		a.Bytes += op.Size
+		if op.Why == syncer.WhyNew {
+			a.New++
+		} else {
+			a.Changed++
+		}
 	}
 	for _, op := range plan.Skip {
 		at(op).Tracks++
@@ -95,6 +100,7 @@ func AlbumsFromPlan(plan *syncer.Plan) []Album {
 		// the album is not untouched either.
 		a := at(op)
 		a.Tracks++
+		a.Renamed++
 	}
 	// The art ops know the album's source folder even for an album whose
 	// every file was skipped in a plan that did not carry paths.
@@ -119,10 +125,15 @@ func AlbumsFromPlan(plan *syncer.Plan) []Album {
 			continue
 		}
 		seen[name] = true
+		// NEW is an album the iPod has nothing of: every track is a copy
+		// and every copy is of a file the iPod does not have. An album
+		// whose every track changed is CHANGED, the word the preview uses
+		// for it — one chip for "the iPod has an older copy" and another
+		// for "the iPod has never seen it" is the whole point of the two.
 		switch {
 		case a.Copy == 0:
 			a.State = TileOnDevice
-		case a.Copy == a.Tracks:
+		case a.New == a.Tracks:
 			a.State = TileNew
 		default:
 			a.State = TileChanged

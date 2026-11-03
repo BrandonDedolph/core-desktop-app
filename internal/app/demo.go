@@ -144,9 +144,9 @@ func demoAlbums() []Album {
 		case s.copy == 0:
 			a.State = TileOnDevice
 		case s.copy == s.tracks:
-			a.State = TileNew
+			a.State, a.New = TileNew, s.copy
 		default:
-			a.State = TileChanged
+			a.State, a.Changed = TileChanged, s.copy
 		}
 		if s.name == demoSheetAlbum {
 			a.TrackList = remainInLight()

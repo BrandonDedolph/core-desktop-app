@@ -1170,8 +1170,8 @@ func TestAnHourShiftIsNotAChange(t *testing.T) {
 		if len(p.Copy) != 0 || len(p.Skip) != 3 {
 			t.Fatalf("shift %v: copy %d skip %d; want 0/3", d, len(p.Copy), len(p.Skip))
 		}
-		if why := p.Skip[0].Reason; !strings.Contains(why, "one hour") {
-			t.Errorf("shift %v: reason %q does not say it was the hour", d, why)
+		if op := p.Skip[0]; op.Why != WhyHourShift || !strings.Contains(op.Reason, "one hour") {
+			t.Errorf("shift %v: why %q, reason %q; want the hour", d, op.Why, op.Reason)
 		}
 		for _, a := range p.Art {
 			// Red has no cover, so its sidecars are always "missing";

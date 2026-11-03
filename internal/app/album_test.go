@@ -503,12 +503,13 @@ func TestTheSheetLaysOut(t *testing.T) {
 // --- the sync preview ----------------------------------------------------
 
 func TestPreviewDialogForTheDemo(t *testing.T) {
-	d := previewDialog(demoAlbums(), `C:\Users\you\Music\MC`, false)
+	d := previewDialog(nil, demoAlbums(), `C:\Users\you\Music\MC`, false, nil)
 	if d.title != "Preview: 7 albums to copy" || d.okLabel != "Sync 7 albums" || d.solo() {
 		t.Fatalf("title %q, ok %q, solo %v", d.title, d.okLabel, d.solo())
 	}
 	if len(d.items) != 7 || d.items[0].label != "Talking Heads - Remain in Light" ||
-		d.items[0].mid != "all 8 tracks" || d.items[2].mid != "all 12 tracks" || d.items[1].mid != "3 of 9 tracks" {
+		d.items[0].mid != "all 8 tracks · new" || d.items[2].mid != "all 12 tracks · new" ||
+		d.items[1].mid != "3 of 9 tracks · changed" {
 		t.Errorf("rows = %+v", d.items)
 	}
 	if d.total != "51 tracks · 1.5 GB · from MC" {
@@ -524,7 +525,7 @@ func TestPreviewListsFortyThenMore(t *testing.T) {
 	for i := 0; i < 45; i++ {
 		albums = append(albums, Album{Title: "A - " + itoa(i), Tracks: 2, Copy: 1, Bytes: 10})
 	}
-	d := previewDialog(albums, "/m", false)
+	d := previewDialog(nil, albums, "/m", false, nil)
 	if len(d.items) != 41 || d.items[40].label != "… and 5 more" || d.okLabel != "Sync 45 albums" {
 		t.Errorf("%d rows, last %+v, ok %q", len(d.items), d.items[len(d.items)-1], d.okLabel)
 	}
@@ -538,11 +539,11 @@ func TestPreviewListsFortyThenMore(t *testing.T) {
 }
 
 func TestPreviewWithNothingToCopyIsOneButton(t *testing.T) {
-	d := previewDialog([]Album{{Title: "A - B", Tracks: 3}}, "/m/MC", false)
+	d := previewDialog(nil, []Album{{Title: "A - B", Tracks: 3}}, "/m/MC", false, nil)
 	if d.title != "Everything is on the iPod" || !d.solo() || d.okLabel != "Close" {
 		t.Errorf("%+v", d)
 	}
-	if d := previewDialog(demoAlbums(), "/m", true); !d.solo() {
+	if d := previewDialog(nil, demoAlbums(), "/m", true, nil); !d.solo() {
 		t.Errorf("too-old firmware still offers the sync: %+v", d)
 	}
 }

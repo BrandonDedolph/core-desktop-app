@@ -198,10 +198,11 @@ func (u *UI) noteSyncWrote(err error) {
 
 // startSyncPreview is the sync a person starts: the header's "Sync N
 // albums" and the iPod tab's "Preview sync". It plans first (a dry run,
-// which also refreshes the grid), shows what the plan would copy
-// (previewDialog), and copies only when that sheet's button is pressed.
+// which also refreshes the grid), shows what the plan would do and why
+// (previewDialog), and syncs only when that sheet's button is pressed.
 // Cancel — or Close on "Everything is on the iPod" — ends the job with
-// nothing written. The plan's lines go to the log as well.
+// nothing written. The plan's lines go to the log as well, each with its
+// why.
 func (u *UI) startSyncPreview() {
 	src := strings.TrimSpace(u.sourceEd.Text())
 	dst := u.st.Device.Volume
@@ -226,11 +227,14 @@ func (u *UI) startSyncPreview() {
 		albums := AlbumsFromPlan(plan)
 		for _, a := range albums {
 			if a.Copy > 0 {
-				emit(Event{Kind: EventLog, Text: fmt.Sprintf("would copy %s — %d of %d tracks, %s",
-					a.Title, a.Copy, a.Tracks, disk.HumanSize(a.Bytes))})
+				emit(Event{Kind: EventLog, Text: previewLog(a, disk.HumanSize(a.Bytes))})
+			}
+			if a.Renamed > 0 {
+				emit(Event{Kind: EventLog, Text: fmt.Sprintf("would rename %d track%s in %s to their right spelling",
+					a.Renamed, plural(a.Renamed), a.Title)})
 			}
 		}
-		req := previewDialog(albums, src, tooOld)
+		req := previewDialog(plan, albums, src, tooOld, nil)
 		answer, err := u.ask(ctx, req)
 		if err != nil {
 			return err

@@ -534,7 +534,13 @@ type Album struct {
 	// them this plan would copy, and Bytes is what those cost.
 	Tracks, Copy int
 	Bytes        int64
-	State        TileState
+	// New and Changed split Copy by why (syncer.CopyWhy): New counts the
+	// copies of files the iPod does not have, Changed the copies of files
+	// it has an older or different version of. An album with any Changed
+	// is a changed album in the sync preview. Renamed is the files the
+	// plan moves to their right spelling instead of copying.
+	New, Changed, Renamed int
+	State                 TileState
 	// Mod is the newest mtime among the album's files in the plan. It
 	// is the second half of the thumbnail cache key: a cover embedded
 	// by a Fix has to reach the grid without restarting the app.

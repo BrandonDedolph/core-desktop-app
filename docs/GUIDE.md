@@ -99,9 +99,16 @@ applied the way the firmware applies it (never louder than its peak allows), so 
 sit level with quiet ones — *Use ReplayGain* in Settings turns it off. The speaker and slider beside the buttons set the app's own volume — not Windows' — and
 remember it; the mouse wheel over the player or Ctrl+↑ / Ctrl+↓ nudge it, and a click on the
 speaker mutes. When the album ends the bar says so for a moment and goes away. A sync or a library fix
-does not stop the music; a track a fix has renamed is skipped. *Sync N albums* (and *Preview sync* on the Summary tab) first shows what the sync would copy —
-each album, how many of its tracks and their size, and the total — and copies nothing until you
-press the sync button on it; when there is nothing to copy it says *Everything is on the iPod*.
+does not stop the music; a track a fix has renamed is skipped. *Sync N albums* (and *Preview sync* on the Summary tab) first shows what the sync would do,
+and why: a card with one line per kind of work — albums *new on the iPod*, albums *changed since
+the last sync* (a file the iPod has an older or different copy of), tracks *renamed on the iPod*,
+covers to render, playlists to write, whether the index is rewritten, and what is *on the iPod,
+not in your folder* (a sync keeps it; *Sync and remove* deletes it) — then each album with how
+many of its tracks go and whether it is new or changed, the total, and *Show the plan*, which is
+every file and the reason it is copied, the same text `core sync --dry-run` prints. Nothing is
+written until you press the sync button on it. When no music needs copying but covers, playlists
+or the index do, it says *Nothing to copy* and offers *Sync* for the rest; when there is no work
+at all it says *Everything is on the iPod*. The same reasons go to the log, one line per album.
 
 <p align="center"><img src="screens/core_app.png" alt="the core desktop app, Linen" width="640"></p>
 <p align="center"><img src="screens/core_app_onyx.png" alt="the core desktop app, Onyx" width="640"></p>
