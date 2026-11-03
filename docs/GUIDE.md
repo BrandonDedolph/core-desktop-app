@@ -58,6 +58,22 @@ shows it within two seconds.
     the next sync copies (filled: new; a ring: changed). Click a column head to sort by it, again
     to reverse it; type in *Search songs* to narrow it by title, artist or album. A click plays
     the song here, and the album carries on after it.
+- **Adding music.** *Add music…* — at the right of the view switch, on the empty Music tab,
+  and in **···** — asks for a folder (a ripped CD, a download, a USB stick, a whole second
+  library) and shows one sheet, *Adding to your library*: where it is from, what was found, and
+  one row per album with the name it will get in your music folder (`Album - Artist`, from its
+  tags), its songs and its size. Every album is ticked except the ones your library already has
+  (the same folder, or the same songs under another name), which you may tick anyway, and the
+  ones that cannot be added — no tags, no track numbers, or a format the iPod cannot play
+  (`.m4a`, `.ogg`, `.wav`…) — which say why. *Add N albums* copies every file into place, reads
+  each copy back and checks it against its original, and only when every file of an album checked
+  out deletes the originals, and their folder if that leaves it empty; untick *Delete the
+  originals once they are safely in the library* to leave the folder as it was. A copy that does
+  not match leaves that album's originals alone and takes its copies away. An album with no cover
+  gets the picture in its folder, or one from the internet when Settings allows it. The albums
+  then show as NEW, the header says *Sync N albums*, and the Fix tab's *Undo* puts the originals
+  back where they were. Nothing on the iPod changes until you sync. From the command line:
+  `core add <folder> --to <music folder>` (`--keep-originals`, `--dry-run`).
 - **Fix** is where the music folder is set (the field and *Browse…*), and what is wrong with
   it — filenames that do not match their tags, folders to organize, missing covers — with *Fix
   all* and *Undo*. Clicking the folder at the bottom of the window brings you here. Two more
@@ -97,7 +113,7 @@ shows it within two seconds.
   few lines of a start appear once it has done one of those.
   The window remembers which tab you were on until it closes.
 - **···** holds the rest: back up the firmware, flash an image file, read the iPod again, check for
-  updates, show or copy the log, open the music folder, *Settings…* and About — and, when a newer
+  updates, show or copy the log, add music, open the music folder, *Settings…* and About — and, when a newer
   release of the app is out, *Update the app to vX.Y.Z* (see **Updating the app** below).
   *Settings…* is everything the app remembers, saved the moment you change it: the music folder,
   the four *Fix all* ticks (the Fix tab's own), the low-resolution line, the backup folder, *Use

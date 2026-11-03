@@ -35,6 +35,7 @@ const (
 	menuCheck
 	menuShowLog
 	menuCopyLog
+	menuAddMusic
 	menuOpenMusic
 	menuGetApp
 	menuSettings
@@ -53,6 +54,7 @@ var menuLabels = [menuCount]string{
 	menuCheck:     "Check for updates",
 	menuShowLog:   "Show the log",
 	menuCopyLog:   "Copy the log",
+	menuAddMusic:  addButton,
 	menuOpenMusic: "Open the music folder",
 	menuGetApp:    "Update the app",
 	menuSettings:  "Settings…",
@@ -64,7 +66,7 @@ var menuLabels = [menuCount]string{
 var menuGroups = [][]int{
 	{menuBackup, menuFlashFile},
 	{menuReread, menuCheck},
-	{menuShowLog, menuCopyLog, menuOpenMusic},
+	{menuShowLog, menuCopyLog, menuAddMusic, menuOpenMusic},
 	{menuGetApp, menuSettings, menuAbout},
 }
 
@@ -84,6 +86,8 @@ func (u *UI) menuEnabled(i int) bool {
 		return len(u.st.Log) > 0
 	case menuOpenMusic:
 		return strings.TrimSpace(u.st.Source) != ""
+	case menuAddMusic:
+		return !busy && strings.TrimSpace(u.st.Source) != ""
 	}
 	return true
 }
@@ -145,6 +149,8 @@ func (u *UI) menuDo(gtx C, i int) {
 		u.copyLog(gtx)
 	case menuOpenMusic:
 		u.openMusicFolder()
+	case menuAddMusic:
+		u.startAdd()
 	case menuGetApp:
 		u.startAppUpdate()
 	case menuAbout:

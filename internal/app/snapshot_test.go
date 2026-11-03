@@ -203,6 +203,7 @@ func TestSnapshotGates(t *testing.T) {
 		{"chooser", ThemeLinen}, {"chooser", ThemeOnyx},
 		{"ipodlog", ThemeLinen}, {"ipodlog", ThemeOnyx},
 		{"artist", ThemeLinen}, {"artist", ThemeOnyx},
+		{"add", ThemeLinen}, {"add", ThemeOnyx},
 	}
 	for _, c := range cases {
 		out := filepath.Join(dir, fmt.Sprintf("dialog-%s-%s-900x600.png", c.kind, c.th))

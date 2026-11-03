@@ -711,6 +711,10 @@ func (u *UI) gridEmpty(gtx C) D {
 		head = "No music folder yet"
 		note = "Choose the folder that holds your albums — one folder per album, " +
 			"named \"Album - Artist\" — and this becomes your library."
+	case u.st.Report != nil && u.st.Report.Albums == 0:
+		head = "Your music folder is empty"
+		note = "Add music… copies a folder of music into " + sourceName(u.st.Source) +
+			", named from its tags, and the albums appear here."
 	case u.st.Device.Volume == "":
 		head = "Waiting for the iPod's drive"
 		note = "The albums appear once the iPod's music volume has been read."
@@ -726,9 +730,14 @@ func (u *UI) gridEmpty(gtx C) D {
 				layout.Rigid(u.wrap(12, u.pal.Muted, note)),
 				layout.Rigid(layout.Spacer{Height: unit.Dp(12)}.Layout),
 				layout.Rigid(func(gtx C) D {
+					if strings.TrimSpace(u.st.Source) == "" {
+						return u.buttonRow(gtx,
+							btn{&u.browseBtn, "Choose the music folder…", true, !u.st.Busy()})
+					}
 					return u.buttonRow(gtx,
-						btn{&u.browseBtn, "Choose the music folder…", true, !u.st.Busy()},
-						btn{&u.rescanBtn, "Rescan", false, !u.st.Busy() && u.st.Source != ""},
+						btn{&u.addBtn, addButton, true, !u.st.Busy()},
+						btn{&u.browseBtn, "Choose the music folder…", false, !u.st.Busy()},
+						btn{&u.rescanBtn, "Rescan", false, !u.st.Busy()},
 					)
 				}),
 			)

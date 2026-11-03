@@ -69,6 +69,8 @@ const (
 	// JobEditTags is the album sheet's Save: one album's tags written,
 	// then its names made to match.
 	JobEditTags
+	// JobAdd is Add music…: a folder copied into the library.
+	JobAdd
 )
 
 // String is the label shown in the status line and written into the
@@ -113,6 +115,8 @@ func (k JobKind) String() string {
 		return "app update"
 	case JobEditTags:
 		return "saving the tags"
+	case JobAdd:
+		return "add music"
 	default:
 		return "idle"
 	}

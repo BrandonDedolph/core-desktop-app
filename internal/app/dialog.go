@@ -83,6 +83,10 @@ func (u *UI) dialogPlate(gtx C, d *dialogRequest) D {
 				add(u.wrap(12.5, u.pal.Ink, d.total))
 				gap(8)
 			}
+			if d.option != "" {
+				add(func(gtx C) D { return u.setTick(gtx, &u.dlgOption, d.option) })
+				gap(10)
+			}
 			if d.body != "" {
 				add(u.dialogBody)
 				gap(10)
@@ -187,6 +191,9 @@ func (u *UI) cardBox(gtx C, rows []cardRow, labelled bool) D {
 								list := material.List(u.th, &u.itemList)
 								list.Indicator.Color = u.pal.SelSub
 								return list.Layout(gtx, len(rows), func(gtx C, i int) D {
+									if d := u.dlg; d != nil && i < len(d.picks) && i < len(u.dlgPicks) {
+										return u.pickLine(gtx, i, rows[i])
+									}
 									return u.listLine(gtx, rows[i])
 								})
 							}
@@ -248,6 +255,67 @@ func (u *UI) listLine(gtx C, r cardRow) D {
 				}
 				gtx.Constraints.Min.X = gtx.Dp(64)
 				return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx C) D {
+					l := material.Label(u.th, unit.Sp(12), r.value)
+					l.Color = u.pal.Muted
+					l.Alignment = text.End
+					l.MaxLines = 1
+					return l.Layout(gtx)
+				})
+			}),
+		)
+	})
+}
+
+// pickLine is one row of a list of ticks: the tick (or a dot for a row that
+// cannot be chosen), the name with its why under it, the middle column and
+// the size.
+func (u *UI) pickLine(gtx C, i int, r cardRow) D {
+	d := u.dlg
+	why := ""
+	if i < len(d.pickWhy) {
+		why = d.pickWhy[i]
+	}
+	can := i < len(d.pickable) && d.pickable[i]
+	return layout.Inset{Top: unit.Dp(3), Bottom: unit.Dp(3)}.Layout(gtx, func(gtx C) D {
+		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx C) D {
+				w := gtx.Dp(22)
+				gtx.Constraints.Min.X, gtx.Constraints.Max.X = w, w
+				if !can {
+					size := gtx.Dp(8)
+					return layout.Inset{Left: unit.Dp(4)}.Layout(gtx, func(gtx C) D {
+						paint.FillShape(gtx.Ops, u.pal.Muted2, clip.Ellipse{Max: image.Pt(size, size)}.Op(gtx.Ops))
+						return D{Size: image.Pt(size, size)}
+					})
+				}
+				cb := material.CheckBox(u.th, &u.dlgPicks[i], "")
+				cb.Color = u.pal.Ink
+				cb.IconColor = u.pal.Ink
+				cb.Size = unit.Dp(16)
+				return cb.Layout(gtx)
+			}),
+			layout.Rigid(layout.Spacer{Width: unit.Dp(6)}.Layout),
+			layout.Flexed(1, func(gtx C) D {
+				name := u.pal.Ink
+				if !can {
+					name = u.pal.Muted
+				}
+				if why == "" {
+					return u.wrapN(12.5, name, r.label, 1)(gtx)
+				}
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(u.wrapN(12.5, name, r.label, 1)),
+					layout.Rigid(u.wrapN(11, u.pal.Muted, why, 2)),
+				)
+			}),
+			layout.Rigid(func(gtx C) D {
+				w := gtx.Dp(70)
+				gtx.Constraints.Min.X, gtx.Constraints.Max.X = w, w
+				return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, u.text(12, u.pal.Muted, r.mid))
+			}),
+			layout.Rigid(func(gtx C) D {
+				gtx.Constraints.Min.X = gtx.Dp(64)
+				return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx C) D {
 					l := material.Label(u.th, unit.Sp(12), r.value)
 					l.Color = u.pal.Muted
 					l.Alignment = text.End
@@ -323,7 +391,8 @@ func (u *UI) dialogButtons(gtx C) D {
 			if d.hold {
 				return u.holdButton(gtx)
 			}
-			return u.button(gtx, btn{&u.dlgOK, d.okLabel, true, ok})
+			label, enabled := d.okButton()
+			return u.button(gtx, btn{&u.dlgOK, label, true, ok && enabled})
 		}),
 	)
 }

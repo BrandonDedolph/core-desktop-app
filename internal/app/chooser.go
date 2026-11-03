@@ -53,6 +53,7 @@ var (
 	chooseMusicKind     = chooserKind{id: "music", title: "Choose the music folder"}
 	choosePlaylistsKind = chooserKind{id: "playlists", title: "Choose the playlists folder"}
 	chooseBackupKind    = chooserKind{id: "backup", title: "Choose the backup folder"}
+	chooseAddKind       = chooserKind{id: "add", title: "Choose a folder of music to add"}
 	chooseLogKind       = chooserKind{id: "log", title: "Choose the folder for the log"}
 	chooseFirmwareKind  = chooserKind{id: "firmware", title: "Choose a firmware image", files: true,
 		filter: "a firmware image (.ipod or .bin)", exts: []string{".ipod", ".bin"}}
@@ -62,7 +63,7 @@ var (
 
 // chooserKinds is every kind, for the words test.
 var chooserKinds = []chooserKind{chooseMusicKind, choosePlaylistsKind, chooseBackupKind, chooseLogKind,
-	chooseFirmwareKind, chooseGenreMapKind}
+	chooseFirmwareKind, chooseGenreMapKind, chooseAddKind}
 
 // accepts reports whether a file called name is one this kind lists.
 func (k chooserKind) accepts(name string) bool {

@@ -132,10 +132,7 @@ func (t *trackMemo) read(path string) (*flac.Meta, error) {
 func (t *trackMemo) remember(path string, m *flac.Meta, err error) trackInfo {
 	info := trackInfo{}
 	if err == nil && m != nil {
-		info.title = artfetch.NormKey(m.Tag("title"))
-		info.artist = artfetch.NormKey(m.Tag("artist", "albumartist", "album_artist", "album artist"))
-		info.seconds = int(m.DurationSeconds())
-		info.ok = info.title != "" && info.seconds > 0
+		info = infoOf(m)
 	}
 	if fi, err := os.Stat(path); err == nil {
 		info.size = fi.Size()
@@ -143,6 +140,18 @@ func (t *trackMemo) remember(path string, m *flac.Meta, err error) trackInfo {
 	t.mu.Lock()
 	t.seen[path] = info
 	t.mu.Unlock()
+	return info
+}
+
+// infoOf is what the check needs of one file's tags: the title and the
+// artist folded, and the length.
+func infoOf(m *flac.Meta) trackInfo {
+	info := trackInfo{
+		title:   artfetch.NormKey(m.Tag("title")),
+		artist:  artfetch.NormKey(m.Tag("artist", "albumartist", "album_artist", "album artist")),
+		seconds: int(m.DurationSeconds()),
+	}
+	info.ok = info.title != "" && info.seconds > 0
 	return info
 }
 
@@ -173,10 +182,38 @@ type dupAlbum struct {
 }
 
 // findDuplicates compares every album with every other one.
-//
-// An index from (title, artist) to the tracks that carry it keeps this from
-// being albums² × tracks²: each track only meets the tracks it could match.
 func findDuplicates(root string, albums []album, memo *trackMemo) []DuplicateGroup {
+	all := dupAlbums(root, albums, memo)
+	dm := matchAll(all)
+	var out []DuplicateGroup
+	for ai := range all {
+		for bi := range all {
+			if ai == bi {
+				continue
+			}
+			mab, inAB := dm.contained(ai, bi)
+			if !inAB {
+				continue
+			}
+			mba, inBA := dm.contained(bi, ai)
+			if inBA && ai > bi {
+				continue // the same pair, seen from the other side
+			}
+			out = append(out, makeGroup(all[ai], all[bi], mab, mba, inBA))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].A.Key != out[j].A.Key {
+			return out[i].A.Key < out[j].A.Key
+		}
+		return out[i].B.Key < out[j].B.Key
+	})
+	return out
+}
+
+// dupAlbums is the check's view of a list of album folders: every track's
+// title, artist and length, read through memo.
+func dupAlbums(root string, albums []album, memo *trackMemo) []*dupAlbum {
 	all := make([]*dupAlbum, 0, len(albums))
 	for _, a := range albums {
 		d := &dupAlbum{ref: AlbumRef{
@@ -198,7 +235,20 @@ func findDuplicates(root string, albums []album, memo *trackMemo) []DuplicateGro
 		}
 		all = append(all, d)
 	}
+	return all
+}
 
+// dupMatches is every album's matches against every other: m[a][b] is how
+// many of a's tracks were found in b, and which of b's tracks they were.
+type dupMatches struct {
+	all []*dupAlbum
+	m   []map[int]*match
+}
+
+// matchAll compares the albums. An index from (title, artist) to the tracks
+// that carry it keeps this from being albums² × tracks²: each track only
+// meets the tracks it could match.
+func matchAll(all []*dupAlbum) *dupMatches {
 	type at struct{ album, track int }
 	index := map[string][]at{}
 	for ai, a := range all {
@@ -210,8 +260,6 @@ func findDuplicates(root string, albums []album, memo *trackMemo) []DuplicateGro
 		}
 	}
 
-	// matches[a][b] is how many of a's tracks were found in b, and which
-	// of b's tracks they were.
 	matches := make([]map[int]*match, len(all))
 	for ai, a := range all {
 		matches[ai] = map[int]*match{}
@@ -242,39 +290,17 @@ func findDuplicates(root string, albums []album, memo *trackMemo) []DuplicateGro
 			}
 		}
 	}
+	return &dupMatches{all: all, m: matches}
+}
 
-	contained := func(a, b int) (*match, bool) {
-		m := matches[a][b]
-		if m == nil || len(all[a].tracks) < minDuplicateTracks {
-			return m, false
-		}
-		return m, float64(m.n)+1e-9 >= ContainedShare*float64(len(all[a].tracks))
+// contained is the rule: at least ContainedShare of a's tracks are in b,
+// and a is album-shaped (minDuplicateTracks or more).
+func (d *dupMatches) contained(a, b int) (*match, bool) {
+	m := d.m[a][b]
+	if m == nil || len(d.all[a].tracks) < minDuplicateTracks {
+		return m, false
 	}
-
-	var out []DuplicateGroup
-	for ai := range all {
-		for bi := range all {
-			if ai == bi {
-				continue
-			}
-			mab, inAB := contained(ai, bi)
-			if !inAB {
-				continue
-			}
-			mba, inBA := contained(bi, ai)
-			if inBA && ai > bi {
-				continue // the same pair, seen from the other side
-			}
-			out = append(out, makeGroup(all[ai], all[bi], mab, mba, inBA))
-		}
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].A.Key != out[j].A.Key {
-			return out[i].A.Key < out[j].A.Key
-		}
-		return out[i].B.Key < out[j].B.Key
-	})
-	return out
+	return m, float64(m.n)+1e-9 >= ContainedShare*float64(len(d.all[a].tracks))
 }
 
 // match is how many of one album's tracks were found in another, and which

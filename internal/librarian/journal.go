@@ -63,6 +63,10 @@ type fixJournal struct {
 	Trash []trashOp `json:"trash,omitempty"`
 	// Tags are the files Edit… retagged (edit.go), with their old values.
 	Tags []tagOp `json:"tags,omitempty"`
+	// Adds are the files Add music… copied into the library (add.go), and
+	// AddDirs the library folders it made for them, in the order made.
+	Adds    []addOp  `json:"adds,omitempty"`
+	AddDirs []string `json:"add_dirs,omitempty"`
 	// Previous is the journal of the changes made before this one in the
 	// same session; Undo takes it back after this one.
 	Previous string `json:"previous,omitempty"`
@@ -227,9 +231,11 @@ func readFixJournal(path string) (*fixJournal, bool, error) {
 	if err := json.Unmarshal(b, &j); err != nil || j.Kind != fixJournalKind {
 		return nil, false, nil
 	}
-	if j.Format != fixJournalFormat && j.Format != tagJournalFormat {
-		return nil, true, fmt.Errorf("%s: fix journal format %d, this build reads %d and %d", path, j.Format,
-			fixJournalFormat, tagJournalFormat)
+	switch j.Format {
+	case fixJournalFormat, tagJournalFormat, addJournalFormat:
+	default:
+		return nil, true, fmt.Errorf("%s: fix journal format %d, this build reads %d, %d and %d", path, j.Format,
+			fixJournalFormat, tagJournalFormat, addJournalFormat)
 	}
 	j.Path = path
 	return &j, true, nil
@@ -263,7 +269,7 @@ func stampOf(path string) (size, mtime int64, err error) {
 // The tags an Edit… wrote go back last of the file changes, after the names.
 //
 // What could not be put back is listed in the report's Skipped, with Op.Reason
-// "cover", "sidecar", "tags" or "trash" for this file's own entries.
+// "cover", "sidecar", "tags", "trash" or "add" for this file's own entries.
 func Undo(ctx context.Context, journalPath string, o Options) (*organizer.UndoReport, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -279,6 +285,12 @@ func Undo(ctx context.Context, journalPath string, o Options) (*organizer.UndoRe
 	skip := func(reason, from, to, why string) {
 		rep.Skipped = append(rep.Skipped, organizer.Skip{
 			Op: organizer.Op{From: from, To: to, Reason: reason}, Reason: why})
+	}
+
+	// An add is a journal of its own: the copies go back to where their
+	// originals were (add.go).
+	if err := undoAdds(ctx, j, rep, o); err != nil {
+		return rep, err
 	}
 
 	for i := len(j.Sidecars) - 1; i >= 0; i-- {

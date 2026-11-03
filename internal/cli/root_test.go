@@ -29,7 +29,7 @@ func TestRootRegistersOnlyRealCommands(t *testing.T) {
 	want := map[string]bool{
 		"build": true, "info": true, "backup": true,
 		"firmware": true, "index": true, "art": true,
-		"organize": true, "fix": true, "sync": true, "eject": true, "flash": true,
+		"organize": true, "fix": true, "add": true, "sync": true, "eject": true, "flash": true,
 		"update": true, "doctor": true, "self-update": true,
 		"name": true, "install": true, "config": true,
 	}

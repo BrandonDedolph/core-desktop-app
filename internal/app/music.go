@@ -210,7 +210,8 @@ func (u *UI) musicPane(gtx C) D {
 }
 
 // viewSwitch is "Albums · Artists · Genres · Songs", the chosen one in ink;
-// in a genre, "‹ Genres › Hip-Hop". On Songs, the search field at the right.
+// in a genre, "‹ Genres › Hip-Hop". On Songs, the search field at the right;
+// Add music… at the far right on every view.
 func (u *UI) viewSwitch(gtx C) D {
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	h := gtx.Dp(28)
@@ -272,6 +273,12 @@ func (u *UI) viewSwitch(gtx C) D {
 			}
 			gtx.Constraints.Min.X, gtx.Constraints.Max.X = w, w
 			return u.field(gtx, &u.songSearch, musicSearchHint)
+		})
+	}))
+	// Add music…, at the right of the row, on every view.
+	kids = append(kids, layout.Rigid(func(gtx C) D {
+		return layout.Inset{Left: unit.Dp(10)}.Layout(gtx, func(gtx C) D {
+			return u.button(gtx, btn{&u.addBtn, addButton, false, !u.st.Busy()})
 		})
 	}))
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, kids...)

@@ -134,6 +134,14 @@ type fakeBackend struct {
 	editCalls  []editCall
 	editResult *librarian.EditResult
 	editErr    error
+
+	// Add music…: what PlanAdd answers, and every Add it was asked for.
+	addPlan      *librarian.AddPlan
+	planAddCalls [][2]string
+	planAddErr   error
+	addCalls     []addCall
+	addResult    *librarian.AddResult
+	addErr       error
 }
 
 type editCall struct {
@@ -155,6 +163,39 @@ func (f *fakeBackend) EditTags(ctx context.Context, root, dir string, edits []li
 		return f.editResult, nil
 	}
 	return &librarian.EditResult{Journal: "/journal/edit-fix.json", Written: len(edits), Dir: dir}, nil
+}
+
+// addCall is one Add: the albums, the tick and the journal it chains to.
+type addCall struct {
+	chosen          []librarian.AlbumKey
+	deleteOriginals bool
+	after           string
+}
+
+func (f *fakeBackend) PlanAdd(ctx context.Context, src, lib string, emit func(Event)) (*librarian.AddPlan, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.planAddCalls = append(f.planAddCalls, [2]string{src, lib})
+	if f.planAddErr != nil {
+		return nil, f.planAddErr
+	}
+	return f.addPlan, nil
+}
+
+func (f *fakeBackend) Add(ctx context.Context, plan *librarian.AddPlan, chosen []librarian.AlbumKey,
+	deleteOriginals bool, after string, emit func(Event)) (*librarian.AddResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.addCalls = append(f.addCalls, addCall{chosen, deleteOriginals, after})
+	emit(Event{Kind: EventProgress, Text: "adding 1 of 1", Pct: 0.5})
+	if f.addResult != nil {
+		return f.addResult, f.addErr
+	}
+	res := &librarian.AddResult{Journal: "/journal/add.json"}
+	for _, k := range chosen {
+		res.Added = append(res.Added, librarian.AddedAlbum{Key: k, Name: string(k)})
+	}
+	return res, f.addErr
 }
 
 func (f *fakeBackend) Inspect(ctx context.Context, src string, discFolders bool,

@@ -143,6 +143,28 @@ type dialogRequest struct {
 	// takes (Settings' Restore defaults), where there is no job goroutine
 	// blocked on reply to act on it.
 	then func(answer string)
+
+	// picks makes the items list a list of ticks, one per row: picks is
+	// each row's state, pickable whether a click may change it (a row that
+	// cannot be chosen draws a dot instead), pickWhy the muted line under
+	// its name. option is one more tick under the list, optionOn its
+	// state. The job reads all of it once its reply has come: the UI
+	// goroutine writes them before it sends the answer, never after.
+	picks, pickable []bool
+	pickWhy         []string
+	option          string
+	optionOn        bool
+	// okFor, when set, is the confirming button's label and whether it may
+	// be pressed, worked out from the ticks each frame ("Add 3 albums").
+	okFor func(d *dialogRequest) (label string, enabled bool)
+}
+
+// okButton is the confirming button's label and whether it is enabled.
+func (d *dialogRequest) okButton() (string, bool) {
+	if d.okFor != nil {
+		return d.okFor(d)
+	}
+	return d.okLabel, true
 }
 
 // solo reports whether the dialog has one button and nothing to cancel.
@@ -186,6 +208,7 @@ type UI struct {
 	// drawn from.
 	newReport  *librarian.Report
 	newCands   map[librarian.AlbumKey][]artfetch.Candidate
+	newAdd     *librarian.AddResult
 	newFix     *librarian.Result
 	newCover   *coverResult
 	newUndo    *organizer.UndoReport
@@ -256,7 +279,10 @@ type UI struct {
 	// It is UI-goroutine-only, like everything else outside the mutex.
 	editingName bool
 
-	browseBtn                                   widget.Clickable
+	browseBtn widget.Clickable
+	// addBtn is Add music…, on the Music tab's row or its empty state
+	// (never both on one frame).
+	addBtn                                      widget.Clickable
 	dryRunBtn, pruneBtn                         widget.Clickable
 	repairBtn                                   widget.Clickable
 	checkBtn, updateBtn, flashBtn, flashOpenBtn widget.Clickable
@@ -264,6 +290,10 @@ type UI struct {
 	nameClick, nameSaveBtn, nameCancelBtn       widget.Clickable
 	installBtn, installFileBtn, installPickBtn  widget.Clickable
 	dlgOK, dlgCancel                            widget.Clickable
+	// dlgPicks and dlgOption are the dialog's ticks (dialogRequest.picks,
+	// .option), reset from the request each time one opens.
+	dlgPicks  []widget.Bool
+	dlgOption widget.Bool
 	// dlgScrim is the click outside a dialog; dlgBlock stops a click on
 	// the plate from being one. itemList scrolls a dialog's list.
 	dlgScrim, dlgBlock widget.Clickable
@@ -615,6 +645,8 @@ func (u *UI) drain() {
 	u.newReport, u.newCands = nil, nil
 	fixed, undone := u.newFix, u.newUndo
 	u.newFix, u.newUndo = nil, nil
+	addedMusic := u.newAdd
+	u.newAdd = nil
 	applied := u.newCover
 	u.newCover = nil
 	plan, planSynced := u.newPlan, u.planSynced
@@ -699,6 +731,9 @@ func (u *UI) drain() {
 		u.st.Tab = TabDetails
 		u.st.Advanced = true
 		u.revealAdvanced()
+	case path != "" && pathFor == JobAdd:
+		// Choosing the folder is not adding it: the sheet comes next.
+		u.addFolder(path)
 	case path != "" && pathFor == JobInstall:
 		// Picking a file is choosing it, not installing it: the button
 		// becomes "Install from <name>" and that click runs the install
@@ -757,6 +792,9 @@ func (u *UI) drain() {
 	if applied != nil {
 		u.coverApplied(applied)
 	}
+	if addedMusic != nil {
+		u.addDone(addedMusic)
+	}
 	if fixed != nil {
 		// A Fix that wrote nothing has no journal of its own; the one
 		// before it is still the one Undo takes back.
@@ -796,6 +834,7 @@ func (u *UI) drain() {
 	if ask != nil {
 		u.dlg = ask
 		u.confirmEd.SetText("")
+		u.dialogTicks()
 	}
 	u.runPending()
 }
@@ -1025,6 +1064,9 @@ func (u *UI) events(gtx C) {
 		if u.browseBtn.Clicked(gtx) {
 			u.chooseMusicFolder()
 		}
+		if u.addBtn.Clicked(gtx) {
+			u.startAdd()
+		}
 		if u.flashOpenBtn.Clicked(gtx) {
 			u.pick(JobFlash)
 		}
@@ -1244,9 +1286,35 @@ func (u *UI) dialogEvents(gtx C) {
 		}
 		return
 	}
+	d := u.dlg
+	for i := range u.dlgPicks {
+		if i < len(d.picks) && u.dlgPicks[i].Update(gtx) {
+			if i < len(d.pickable) && d.pickable[i] {
+				d.picks[i] = u.dlgPicks[i].Value
+			} else {
+				u.dlgPicks[i].Value = d.picks[i]
+			}
+		}
+	}
+	if d.option != "" && u.dlgOption.Update(gtx) {
+		d.optionOn = u.dlgOption.Value
+	}
 	if u.dlgOK.Clicked(gtx) {
 		u.ok()
 	}
+}
+
+// dialogTicks sets the tick widgets from the dialog that has just opened.
+func (u *UI) dialogTicks() {
+	u.dlgPicks = nil
+	if u.dlg == nil {
+		return
+	}
+	u.dlgPicks = make([]widget.Bool, len(u.dlg.picks))
+	for i, v := range u.dlg.picks {
+		u.dlgPicks[i].Value = v
+	}
+	u.dlgOption.Value = u.dlg.optionOn
 }
 
 // CancelAnswer is the reply a dialog's Cancel sends — and the only one that
@@ -1263,6 +1331,9 @@ func (u *UI) cancel() { u.reply(CancelAnswer) }
 // typed; a plain one answers "yes".
 func (u *UI) ok() {
 	if u.dlg == nil {
+		return
+	}
+	if _, enabled := u.dlg.okButton(); !enabled {
 		return
 	}
 	if u.dlg.want != "" {
