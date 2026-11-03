@@ -154,6 +154,17 @@ func UseShotLibrary(st *State, lib *ShotLibrary) {
 			a.Bytes = total * int64(a.Copy) / int64(a.Tracks)
 		}
 	}
+	// Each song carries its album's canned share: the first Copy songs
+	// the album's state, the rest on the iPod.
+	for i := range albums {
+		a := &albums[i]
+		for j := range a.Songs {
+			a.Songs[j].State = TileOnDevice
+			if j < a.Copy {
+				a.Songs[j].State = a.State
+			}
+		}
+	}
 	st.Albums = albums
 	if np := st.NowPlaying; np != nil {
 		st.NowPlaying = nil

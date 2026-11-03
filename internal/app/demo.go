@@ -151,6 +151,7 @@ func demoAlbums() []Album {
 		if s.name == demoSheetAlbum {
 			a.TrackList = remainInLight()
 		}
+		demoSongs(&a)
 		out = append(out, a)
 	}
 	return out

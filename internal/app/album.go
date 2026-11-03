@@ -220,9 +220,17 @@ const (
 // sheetLayer is the scrim and the panel in the middle of it.
 func (u *UI) sheetLayer(gtx C) D {
 	s := u.sheet
+	return u.panelLayer(gtx, &s.scrim, &s.block, u.sheetBody)
+}
+
+// panelLayer is a sheet's scrim and its plate, centred, sheetW wide at most
+// and as tall as body makes it up to 80 % of the window: the album sheet's
+// and the artist sheet's. scrim is the click outside; block keeps a click on
+// the plate from being one.
+func (u *UI) panelLayer(gtx C, scrim, block *widget.Clickable, body layout.Widget) D {
 	full := gtx.Constraints.Max
 	paint.FillShape(gtx.Ops, u.pal.Scrim, clip.Rect{Max: full}.Op())
-	s.scrim.Layout(gtx, func(gtx C) D { return D{Size: full} })
+	scrim.Layout(gtx, func(gtx C) D { return D{Size: full} })
 
 	w := full.X * 92 / 100
 	if m := gtx.Dp(sheetW); w > m {
@@ -232,8 +240,8 @@ func (u *UI) sheetLayer(gtx C) D {
 	g := gtx
 	g.Constraints = layout.Constraints{Min: image.Pt(w, 0), Max: image.Pt(w, maxH)}
 	m := op.Record(gtx.Ops)
-	dims := u.sheetBody(g)
-	body := m.Stop()
+	dims := body(g)
+	rec := m.Stop()
 
 	sz := image.Pt(w, dims.Size.Y)
 	off := image.Pt((full.X-sz.X)/2, (full.Y-sz.Y)/2)
@@ -244,8 +252,8 @@ func (u *UI) sheetLayer(gtx C) D {
 	paint.FillShape(gtx.Ops, u.pal.Plate, clip.UniformRRect(box.Inset(gtx.Dp(1)), r-gtx.Dp(1)).Op(gtx.Ops))
 	bg := gtx
 	bg.Constraints = layout.Exact(sz)
-	s.block.Layout(bg, func(gtx C) D { return D{Size: sz} })
-	body.Add(gtx.Ops)
+	block.Layout(bg, func(gtx C) D { return D{Size: sz} })
+	rec.Add(gtx.Ops)
 	return D{Size: full}
 }
 
@@ -394,18 +402,8 @@ func (u *UI) link(gtx C, click *widget.Clickable, label string, size unit.Sp) D 
 // sheetCoverArt is the cover at 160 dp, or the tile's initial block.
 func (u *UI) sheetCoverArt(gtx C, a Album, sz image.Point) D {
 	defer clip.UniformRRect(image.Rectangle{Max: sz}, gtx.Dp(6)).Push(gtx.Ops).Pop()
-	if img, ok := u.cover(a, sz.X); ok {
-		if b := img.Size(); b.X > 0 && b.Y > 0 {
-			sc := float32(sz.X) / float32(b.X)
-			if sy := float32(sz.Y) / float32(b.Y); sy > sc {
-				sc = sy
-			}
-			st := scaleOp(gtx, sc)
-			img.Add(gtx.Ops)
-			paint.PaintOp{}.Add(gtx.Ops)
-			st.Pop()
-			return D{Size: sz}
-		}
+	if img, ok := u.cover(a, sz.X); ok && u.coverFill(gtx, img, sz) {
+		return D{Size: sz}
 	}
 	u.plainTile(gtx, a, sz)
 	return D{Size: sz}

@@ -14,7 +14,7 @@ import (
 // DialogKinds are the dialogs `core-app --screenshot --dialog KIND` can
 // put on screen, for review. They are drawn and nothing else: a canned
 // dialog has no job behind it, so nothing can be confirmed through one.
-var DialogKinds = []string{"write", "holding", "remove", "about", "album", "preview", "settings", "chooser", "ipodlog", "albumedit"}
+var DialogKinds = []string{"write", "holding", "remove", "about", "album", "artist", "preview", "settings", "chooser", "ipodlog", "albumedit"}
 
 // cannedDialog builds one of DialogKinds against the state's device.
 func cannedDialog(u *UI, kind string) error {
@@ -64,6 +64,16 @@ func cannedDialog(u *UI, kind string) error {
 		if kind == "albumedit" {
 			u.sheet.edit = newAlbumEdit(cannedAlbumTags(u.sheet.album, u.sheet.tracks))
 		}
+		return nil
+	case "artist":
+		// The artist sheet on the Artists view: a real library's first
+		// artist with more than one album, the canned grid's Talking Heads.
+		name := demoArtist(&u.st)
+		if name == "" {
+			return fmt.Errorf("--dialog artist: the state has no albums")
+		}
+		u.st.Tab, u.st.View = TabAlbums, ViewArtists
+		u.openArtist(name)
 		return nil
 	case "settings":
 		u.openSettings()

@@ -84,6 +84,8 @@ func TestConfigSetGetUnsetRoundTrip(t *testing.T) {
 		{"replaygain", "no", "false", "false"},
 		{"theme", "Onyx", `"onyx"`, "onyx"},
 		{"last_tab", "fix", `"fix"`, "fix"},
+		{"music_view", "Songs", `"songs"`, "songs"},
+		{"artist_pictures", "on", "true", "true"},
 		{"volume", "0", "0", "0"},
 		{"keep_backups", "3", "3", "3"},
 		{"source", `C:\Music`, `"C:\\Music"`, `C:\Music`},
@@ -114,6 +116,12 @@ func TestConfigSetGetUnsetRoundTrip(t *testing.T) {
 	}
 	if _, ok := readRaw(t, path)["theme"]; ok {
 		t.Error(`set theme system wrote a theme the app does not know`)
+	}
+	if _, _, err := runCore(t, "config", "set", "music_view", "albums"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := readRaw(t, path)["music_view"]; ok {
+		t.Error(`set music_view albums wrote the default instead of removing the key`)
 	}
 
 	// The listing has every key, set or default.

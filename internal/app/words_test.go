@@ -35,6 +35,14 @@ func frontStrings(u *UI) []string {
 		out = append(out, u.ipodStrings()...)
 		u.st.Advanced = adv
 	}
+	out = append(out, musicStrings()...)
+	cat := u.catalog()
+	for _, a := range cat.Artists {
+		out = append(out, a.Facts, artistStatus(u.st.Albums, a.Albums))
+	}
+	for _, g := range cat.Genres {
+		out = append(out, g.Facts)
+	}
 	out = append(out, menuLabels[:]...)
 	out = append(out, u.settingsStrings()...)
 	out = append(out, chooserStrings()...)
@@ -69,6 +77,7 @@ func TestNoOldWordsOnTheFront(t *testing.T) {
 	states := map[string]func() State{
 		"demo": DemoState, "library": LibraryState, "empty": EmptyState,
 		"looking": LookingState, "notinstalled": NotInstalledState, "menu": MenuState,
+		"artists": ArtistsState, "genres": GenresState, "genre": GenreState, "songs": SongsState,
 	}
 	for name, mk := range states {
 		for _, th := range []Theme{ThemeLinen, ThemeOnyx} {
@@ -77,10 +86,14 @@ func TestNoOldWordsOnTheFront(t *testing.T) {
 			u.SetState(mk())
 			for _, tab := range []Tab{TabAlbums, TabLibrary, TabDetails} {
 				u.st.Tab = tab
-				for _, s := range frontStrings(u) {
-					for _, bad := range forbidden {
-						if strings.Contains(s, bad) {
-							t.Errorf("%s/%s/%s: %q contains %q", name, th, tab, s, bad)
+				for _, v := range musicViews {
+					// The tab row's note is the view's own on the Music tab.
+					u.st.View = v
+					for _, s := range frontStrings(u) {
+						for _, bad := range forbidden {
+							if strings.Contains(s, bad) {
+								t.Errorf("%s/%s/%s/%s: %q contains %q", name, th, tab, v, s, bad)
+							}
 						}
 					}
 				}

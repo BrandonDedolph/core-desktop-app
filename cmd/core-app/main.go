@@ -17,10 +17,10 @@
 //	core-app --source DIR             open it with the music folder preset
 //	core-app --log FILE               append startup diagnostics to FILE
 //	core-app --no-detect              do not poll for the iPod
-//	core-app --screenshot OUT.png [--state demo|library|empty|looking|notinstalled|menu|advanced|album|playing|preview|lowres|lowres-after|duplicates|tidy]
-//	              [--size 900x600] [--tab music|fix|summary]
+//	core-app --screenshot OUT.png [--state demo|library|empty|looking|notinstalled|menu|advanced|album|playing|preview|lowres|lowres-after|duplicates|tidy|artists|genres|genre|songs]
+//	              [--size 900x600] [--tab music|fix|summary] [--view albums|artists|genres|songs]
 //	              [--theme system|linen|onyx] [--drawer]
-//	              [--dialog write|holding|remove|about|album|preview|settings|chooser|ipodlog|albumedit]
+//	              [--dialog write|holding|remove|about|album|artist|preview|settings|chooser|ipodlog|albumedit]
 //	              [--source DIR]
 //	                                  render one frame headless and exit;
 //	                                  with --source, the grid, covers and the
@@ -60,15 +60,17 @@ func main() {
 			"Which canned state --screenshot renders: demo, library, empty, looking, notinstalled, menu, advanced, "+
 				"album (the album sheet, a track playing), playing (the same, sheet closed: the footer's bar), "+
 				"preview (the sync preview), lowres (the Fix tab on its small covers), lowres-after (the same after Use this cover), "+
-				"duplicates (the duplicate-album chooser), tidy (the Fix tab with nothing to fix)")
+				"duplicates (the duplicate-album chooser), tidy (the Fix tab with nothing to fix), "+
+				"artists, genres, songs (the Music tab's views), genre (one genre's albums)")
 		size     = flag.String("size", "900x600", "--screenshot size, WxH")
 		tabName  = flag.String("tab", "", "Which tab --screenshot shows: music, fix, summary (also albums, library, details; default: the state's own)")
+		viewName = flag.String("view", "", "Which Music view --screenshot shows: albums, artists, genres, songs (default: the state's own)")
 		source   = flag.String("source", "", "Preset the music source folder (with --screenshot: draw that folder's albums and covers)")
 		logFile  = flag.String("log", "", "Append startup diagnostics to this file")
 		noDetect = flag.Bool("no-detect", false,
 			"Do not poll for the iPod every 2 seconds; the window stays on whatever it last read")
 		drawer    = flag.Bool("drawer", false, "--screenshot with the log drawer open")
-		dialog    = flag.String("dialog", "", "--screenshot with a dialog open: write, holding, remove, about, album, preview, settings, chooser, ipodlog, albumedit")
+		dialog    = flag.String("dialog", "", "--screenshot with a dialog open: write, holding, remove, about, album, artist, preview, settings, chooser, ipodlog, albumedit")
 		themeName = flag.String("theme", "",
 			"Palette for this run: system (Onyx when Windows is set to dark apps), linen or onyx; default: the saved choice")
 		showVersion = flag.Bool("version", false, "Print the version and exit")
@@ -116,6 +118,13 @@ func main() {
 		default:
 			fail(*logFile, fmt.Errorf("--tab %q: want music, fix or summary (or albums, library, details)", *tabName))
 		}
+		if *viewName != "" {
+			v, ok := app.ViewByName(*viewName)
+			if !ok {
+				fail(*logFile, fmt.Errorf("--view %q: want albums, artists, genres or songs", *viewName))
+			}
+			st.View, st.Genre = v, ""
+		}
 		// The two sheets are the demo with one open.
 		if s := strings.ToLower(*stateName); *dialog == "" && (s == "album" || s == "preview") {
 			*dialog = s
@@ -144,6 +153,7 @@ func main() {
 	be := app.NewRealBackend(cfg.BackupDir)
 	be.MinArtPx = cfg.MinArtPx
 	be.NoOnlineArt = !cfg.OnlineArtOn()
+	be.ArtistPictures = cfg.ArtistPictures
 	be.SkipDuplicates = !cfg.CheckDuplicatesOn()
 	be.Prereleases = cfg.Prereleases
 	be.KeepBackups = cfg.KeepBackups
@@ -222,10 +232,18 @@ func cannedState(name string) (app.State, error) {
 		return app.TidyState(), nil
 	case "duplicates":
 		return app.DuplicatesState(), nil
+	case "artists":
+		return app.ArtistsState(), nil
+	case "genres":
+		return app.GenresState(), nil
+	case "genre":
+		return app.GenreState(), nil
+	case "songs":
+		return app.SongsState(), nil
 	default:
 		return app.State{}, fmt.Errorf(
 			"--state %q: expected demo, library, empty, looking, notinstalled, menu, advanced, album, playing, preview, "+
-				"lowres, lowres-after, duplicates or tidy", name)
+				"lowres, lowres-after, duplicates, tidy, artists, genres, genre or songs", name)
 	}
 }
 
