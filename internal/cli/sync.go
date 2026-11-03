@@ -192,8 +192,14 @@ func printReport(w io.Writer, r *syncer.Report) {
 		// The device takes this at its next boot — it cannot be told the time
 		// while it is on the cable (internal/devicefs/clock.go).
 		_, off := r.ClockStamped.Zone()
+		zone := offsetText(off / 60)
+		if r.ClockStamped.IsDST() {
+			// The record says so too (byte 55), and the iPod, which keeps
+			// standard time, takes the hour off and adds it back itself.
+			zone += ", daylight time"
+		}
 		fmt.Fprintf(w, "clock: stamped %s UTC (%s)\n",
-			r.ClockStamped.UTC().Format("2006-01-02 15:04"), offsetText(off/60))
+			r.ClockStamped.UTC().Format("2006-01-02 15:04"), zone)
 	}
 	idx := "unchanged"
 	if r.IndexWritten {

@@ -294,36 +294,114 @@ func TestStampMatchesMakeConfig(t *testing.T) {
 	const epoch = 1789555320
 	const offMin = 330
 
-	goDir := t.TempDir()
-	pyDir := t.TempDir()
-	src := EncodeConfigSlot(DefaultSettings(), 3)
-	goPath := writeTestConfig(t, goDir, src[:], nil)
-	pyPath := writeTestConfig(t, pyDir, src[:], nil)
+	// Both ways the host can be: on daylight time (a zone with DST and an
+	// instant inside it) and on standard time (a fixed zone). The byte the
+	// two write for each must agree, tag and all.
+	for _, tc := range []struct {
+		name string
+		loc  *time.Location
+		dst  string
+	}{
+		{"standard", time.FixedZone("IST", offMin*60), "off"},
+		{"daylight", mustLoadLocation(t, "America/New_York"), "on"},
+	} {
+		goDir := t.TempDir()
+		pyDir := t.TempDir()
+		src := EncodeConfigSlot(DefaultSettings(), 3)
+		goPath := writeTestConfig(t, goDir, src[:], nil)
+		pyPath := writeTestConfig(t, pyDir, src[:], nil)
 
-	mustStamp(t, goDir, time.Unix(epoch, 0).In(time.FixedZone("IST", offMin*60)))
+		now := time.Unix(epoch, 0).In(tc.loc)
+		if (tc.dst == "on") != now.IsDST() {
+			t.Fatalf("%s: the fixture's instant is not %s time in %s", tc.name, tc.name, tc.loc)
+		}
+		mustStamp(t, goDir, now)
 
-	cmd := exec.Command(py, filepath.Join(repo, "tools", "make_config.py"),
-		"--stamp", pyDir,
-		"--epoch", strconv.Itoa(epoch),
-		"--utc-offset", strconv.Itoa(offMin))
-	if b, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("make_config.py --stamp: %v\n%s", err, b)
-	}
+		cmd := exec.Command(py, filepath.Join(repo, "tools", "make_config.py"),
+			"--stamp", pyDir,
+			"--epoch", strconv.Itoa(epoch),
+			"--utc-offset", strconv.Itoa(zoneOffsetMinutes(now)),
+			"--dst", tc.dst)
+		if b, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("make_config.py --stamp --dst %s: %v\n%s", tc.dst, err, b)
+		}
 
-	goBytes, err := os.ReadFile(goPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pyBytes, err := os.ReadFile(pyPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !equalBytes(goBytes, pyBytes) {
-		for i := range goBytes {
-			if goBytes[i] != pyBytes[i] {
-				t.Fatalf("go and make_config.py --stamp differ at byte %d: %#02x vs %#02x",
-					i, goBytes[i], pyBytes[i])
+		goBytes, err := os.ReadFile(goPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pyBytes, err := os.ReadFile(pyPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !equalBytes(goBytes, pyBytes) {
+			for i := range goBytes {
+				if goBytes[i] != pyBytes[i] {
+					t.Fatalf("%s: go and make_config.py --stamp differ at byte %d: %#02x vs %#02x",
+						tc.name, i, goBytes[i], pyBytes[i])
+				}
 			}
+		}
+	}
+}
+
+func mustLoadLocation(t *testing.T, name string) *time.Location {
+	t.Helper()
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		t.Skipf("no zone database for %s: %v", name, err)
+	}
+	return loc
+}
+
+// The daylight byte: a stamp says which side of the change the host was on,
+// tagged to its own epoch; a record an older tool wrote (byte 55 = 0) and a
+// flag left beside a newer epoch by a tool that did not know the byte both
+// read as unknown, which is what makes the byte safe to add without a
+// version bump.
+func TestStampCarriesTheHostsDaylightState(t *testing.T) {
+	const epoch = 1789555320 // 2026-09-16, EDT in New York
+	ny := mustLoadLocation(t, "America/New_York")
+
+	dir := t.TempDir()
+	src := EncodeConfigSlot(DefaultSettings(), 1)
+	path := writeTestConfig(t, dir, src[:], nil)
+	got := mustStamp(t, dir, time.Unix(epoch, 0).In(ny))
+	if !got.DST || got.OffMin != -240 {
+		t.Fatalf("a September stamp from New York: DST %v, offset %d; want daylight, -240", got.DST, got.OffMin)
+	}
+	b, _ := os.ReadFile(path)
+	slot := b[ConfigSlotBytes : 2*ConfigSlotBytes]
+	ts, ok := DecodeConfigTime(slot)
+	if !ok || ts.HostDST != HostDSTDaylight {
+		t.Fatalf("decoded %+v (%v), want daylight", ts, ok)
+	}
+	if raw := slot[cfgOffPayload+pHostDST]; raw != byte((epoch&0x3F)<<2)|2 {
+		t.Errorf("byte 55 = %#02x, want the tag %#02x | 2", raw, byte((epoch&0x3F)<<2))
+	}
+
+	// January in the same zone is standard time.
+	jan := time.Date(2026, 1, 10, 9, 0, 0, 0, ny)
+	got = mustStamp(t, dir, jan)
+	b, _ = os.ReadFile(path)
+	if ts, _ := DecodeConfigTime(b[:ConfigSlotBytes]); got.DST || ts.HostDST != HostDSTStandard || ts.HostOffMin != -300 {
+		t.Errorf("a January stamp: DST %v, decoded %v / %d; want standard, -300", got.DST, ts.HostDST, ts.HostOffMin)
+	}
+
+	// An older tool's record: byte 55 is 0, which is unknown; and a flag
+	// whose tag belongs to another epoch is unknown too.
+	for _, tc := range []struct {
+		raw  byte
+		want HostDST
+	}{
+		{0, HostDSTUnknown},
+		{byte((epoch&0x3F)<<2) | 1, HostDSTStandard},
+		{byte((epoch&0x3F)<<2) | 2, HostDSTDaylight},
+		{byte((epoch&0x3F)<<2) | 3, HostDSTUnknown},
+		{byte(((epoch+1)&0x3F)<<2) | 2, HostDSTUnknown},
+	} {
+		if got := decodeHostDST(epoch, tc.raw); got != tc.want {
+			t.Errorf("decodeHostDST(%#02x) = %v, want %v", tc.raw, got, tc.want)
 		}
 	}
 }
