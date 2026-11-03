@@ -1631,26 +1631,30 @@ func (u *UI) tabWord(gtx C, click *widget.Clickable, label string, on bool, size
 		col = u.pal.Ink
 	}
 	return click.Layout(gtx, func(gtx C) D {
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Rigid(func(gtx C) D {
-				return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx C) D {
-					l := material.Label(u.th, size, label)
-					l.Color = col
-					l.MaxLines = 1
-					return l.Layout(gtx)
-				})
-			}),
-			layout.Rigid(func(gtx C) D {
-				h := gtx.Dp(2)
-				c := u.pal.Surface
-				if on {
-					c = u.pal.Ink
-				}
-				sz := image.Pt(gtx.Constraints.Min.X, h)
-				paint.FillShape(gtx.Ops, c, clip.Rect{Max: sz}.Op())
-				return D{Size: sz}
-			}),
-		)
+		// The word first, so the rule under it can be as wide as the
+		// word: a Rigid child of a vertical Flex has Min.X 0, and a rule
+		// sized from it was zero pixels wide (the chosen tab was marked
+		// by its darker word alone, on every tab bar, until 2026-11-03).
+		m := op.Record(gtx.Ops)
+		word := layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx C) D {
+			l := material.Label(u.th, size, label)
+			l.Color = col
+			l.MaxLines = 1
+			return l.Layout(gtx)
+		})
+		wordC := m.Stop()
+		wordC.Add(gtx.Ops)
+		h := gtx.Dp(2)
+		c := u.pal.Surface
+		if on {
+			c = u.pal.Ink
+		}
+		sz := image.Pt(word.Size.X, h)
+		func() {
+			defer op.Offset(image.Pt(0, word.Size.Y)).Push(gtx.Ops).Pop()
+			paint.FillShape(gtx.Ops, c, clip.Rect{Max: sz}.Op())
+		}()
+		return D{Size: image.Pt(word.Size.X, word.Size.Y+h)}
 	})
 }
 
