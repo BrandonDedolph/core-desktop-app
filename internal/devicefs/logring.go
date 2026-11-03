@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"sort"
+	"strings"
 )
 
 // The ring half of CORELOG.BIN: the blocks the DEVICE writes. log.go is the
@@ -147,4 +148,102 @@ func (r LogRing) Newest() (LogBlock, bool) {
 		return LogBlock{}, false
 	}
 	return r.Entries[len(r.Entries)-1], true
+}
+
+// LogEntry is one ring block the way a person reads it: the order and the
+// text make_log.py --dump prints (ordered_entries, render_dump).
+type LogEntry struct {
+	Seq   uint32
+	Boot  uint16
+	Final bool
+	// Missing is how many sequence numbers lie between this block and
+	// the one before it — blocks the ring has overwritten, or torn ones
+	// that failed their CRC. 0 for the first block and for a block that
+	// follows on. It is the dump's "N block(s) missing" line.
+	Missing int64
+	// Text is the block's text decoded as the dump decodes it: UTF-8
+	// with each ill-formed sequence replaced by U+FFFD, and CRLF read as
+	// LF. It keeps its trailing newline, or lack of one.
+	Text string
+}
+
+// OrderedLogEntries is the ring as make_log.py's ordered_entries hands it to
+// render_dump: by seq, oldest first, each block's text decoded.
+func OrderedLogEntries(r LogRing) []LogEntry {
+	out := make([]LogEntry, 0, len(r.Entries))
+	for i, b := range r.Entries {
+		e := LogEntry{Seq: b.Seq, Boot: b.Boot, Final: b.Final, Text: LogText(b.Text)}
+		if i > 0 {
+			if prev := r.Entries[i-1].Seq; b.Seq != prev+1 {
+				e.Missing = int64(b.Seq) - int64(prev) - 1
+			}
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+// LogText decodes one block's text exactly as the dump tool does —
+// Python's text.decode("utf-8", errors="replace").replace("\r\n", "\n").
+//
+// The replacement is per MAXIMAL SUBPART (Unicode 15, §3.9 "U+FFFD
+// Substitution of Maximal Subparts", which CPython follows): a sequence
+// cut short — and a 2032-byte block can end in the middle of a song
+// title's é — is ONE U+FFFD, not one per byte as strings.ToValidUTF8's
+// runs or utf8.DecodeRune's single bytes would give.
+func LogText(b []byte) string {
+	var s []byte
+	for i := 0; i < len(b); {
+		c := b[i]
+		if c < 0x80 {
+			s = append(s, c)
+			i++
+			continue
+		}
+		n, lo, hi := utf8Lead(c)
+		k := 0
+		if n > 0 {
+			k = 1
+			if i+1 < len(b) && b[i+1] >= lo && b[i+1] <= hi {
+				k = 2
+				for k < n && i+k < len(b) && b[i+k] >= 0x80 && b[i+k] <= 0xBF {
+					k++
+				}
+			}
+		}
+		if n > 0 && k == n {
+			s = append(s, b[i:i+n]...)
+			i += n
+			continue
+		}
+		s = append(s, "�"...)
+		if k == 0 {
+			k = 1
+		}
+		i += k
+	}
+	return strings.ReplaceAll(string(s), "\r\n", "\n")
+}
+
+// utf8Lead is Unicode Table 3-7 for one lead byte: the sequence's length
+// and the range its SECOND byte must fall in (the rest are 80..BF). n is 0
+// for a byte that cannot start a sequence.
+func utf8Lead(c byte) (n int, lo, hi byte) {
+	switch {
+	case c >= 0xC2 && c <= 0xDF:
+		return 2, 0x80, 0xBF
+	case c == 0xE0:
+		return 3, 0xA0, 0xBF
+	case c == 0xED:
+		return 3, 0x80, 0x9F
+	case c >= 0xE1 && c <= 0xEF:
+		return 3, 0x80, 0xBF
+	case c == 0xF0:
+		return 4, 0x90, 0xBF
+	case c >= 0xF1 && c <= 0xF3:
+		return 4, 0x80, 0xBF
+	case c == 0xF4:
+		return 4, 0x80, 0x8F
+	}
+	return 0, 0, 0
 }
