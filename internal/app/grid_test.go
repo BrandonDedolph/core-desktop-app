@@ -21,28 +21,31 @@ import (
 
 // TestTileStatesFromAPlan is the grid's whole model: a dry run's plan comes
 // in, and each album's badge comes out. An album every one of whose tracks is
-// a copy has never been on the iPod (NEW); one with some copies and some
-// skips is CHANGED; one with no copies at all is simply there.
+// a copy of a file the iPod does not have has never been on the iPod (NEW);
+// one with a copy of a file the iPod has an older version of, or with some
+// copies and some skips, is CHANGED; one with no copies at all is simply
+// there. The planner sets Why on every op (why_test.go), so the fixture does.
 func TestTileStatesFromAPlan(t *testing.T) {
 	mod := time.Date(2026, 9, 15, 11, 3, 0, 0, time.UTC)
-	file := func(album, name string, size int64, at time.Time) syncer.FileOp {
+	file := func(album, name string, size int64, at time.Time, why syncer.CopyWhy) syncer.FileOp {
 		return syncer.FileOp{
 			Album:   album,
 			Src:     filepath.Join("/src", album, name),
 			Size:    size,
 			ModTime: at,
+			Why:     why,
 		}
 	}
 	plan := &syncer.Plan{
 		AlbumOrder: []string{"New - Artist", "Changed - Artist", "There - Artist"},
 		Copy: []syncer.FileOp{
-			file("New - Artist", "01.flac", 1000, mod),
-			file("New - Artist", "02.flac", 2000, mod.Add(time.Hour)),
-			file("Changed - Artist", "02.flac", 4000, mod),
+			file("New - Artist", "01.flac", 1000, mod, syncer.WhyNew),
+			file("New - Artist", "02.flac", 2000, mod.Add(time.Hour), syncer.WhyNew),
+			file("Changed - Artist", "02.flac", 4000, mod, syncer.WhyTime),
 		},
 		Skip: []syncer.FileOp{
-			file("Changed - Artist", "01.flac", 3000, mod),
-			file("There - Artist", "01.flac", 5000, mod),
+			file("Changed - Artist", "01.flac", 3000, mod, syncer.WhySame),
+			file("There - Artist", "01.flac", 5000, mod, syncer.WhySame),
 		},
 	}
 

@@ -123,7 +123,20 @@ const (
 	previewPlaylistLabel = "Playlists"
 	previewIndexLabel    = "Index"
 	previewStaysLabel    = "On the iPod, not in your folder"
+	previewFilesLabel    = "Device files"
 )
+
+// deviceFilesToCreate counts the device files the plan creates: the three
+// in the volume root and the On-The-Go slot playlists that are missing.
+func deviceFilesToCreate(p *syncer.Plan) int {
+	n := len(p.OTGSlots)
+	for _, b := range []bool{p.Config, p.Log, p.OTG} {
+		if b {
+			n++
+		}
+	}
+	return n
+}
 
 // albumWhy is the album row's why: "changed" when any of its copies is of a
 // file the iPod has another version of, else "new".
@@ -195,6 +208,14 @@ func previewCard(plan *syncer.Plan, albums []Album, info func(string) (int64, bo
 			v = fmt.Sprintf("rewritten, %d song%s", plan.Index.Records, plural(plan.Index.Records))
 		}
 		rows = append(rows, cardRow{label: previewIndexLabel, value: v})
+	}
+	// The device files a first sync creates — CORECFG.DAT, CORELOG.BIN,
+	// COREOTG.DAT and the On-The-Go slots — are writes too: a plan with
+	// nothing to copy and one of these to create is not "everything is on
+	// the iPod".
+	if files := deviceFilesToCreate(plan); files > 0 {
+		work = true
+		rows = append(rows, cardRow{label: previewFilesLabel, value: fmt.Sprintf("%d to create", files)})
 	}
 	if k := len(plan.Prune); k > 0 {
 		if info == nil {

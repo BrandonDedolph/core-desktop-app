@@ -119,6 +119,40 @@ func TestPreviewWithNoCopiesButCovers(t *testing.T) {
 	}
 }
 
+// A first sync onto an iPod that has every track already (a library
+// copied by hand) still creates the device files: that is work, and the
+// preview offers the sync for it.
+func TestPreviewWithOnlyDeviceFilesToCreate(t *testing.T) {
+	p := whyPlan("A - B", 3)
+	p.Index = syncer.IndexOp{Size: 1000, Records: 3, Unchanged: true}
+	p.Config, p.Log = true, true
+	p.OTGSlots = []string{"On-The-Go 1.m3u8", "On-The-Go 2.m3u8"}
+	d := previewDialog(p, AlbumsFromPlan(p), "/m/MC", false, nil)
+	if d.title != "Nothing to copy" || d.okLabel != "Sync" || d.solo() {
+		t.Fatalf("%+v", d)
+	}
+	if got := card(d)[previewFilesLabel]; got != "4 to create" {
+		t.Errorf("device files = %q", got)
+	}
+}
+
+// The grid's chip agrees with the preview's word: an album whose every
+// track the iPod has an older copy of is CHANGED, not NEW.
+func TestAnAllChangedAlbumIsChangedNotNew(t *testing.T) {
+	p := whyPlan("A - B", 2, syncer.WhyTime, syncer.WhyTime)
+	if a := AlbumsFromPlan(p); a[0].State != TileChanged {
+		t.Errorf("state = %v, want CHANGED", a[0].State)
+	}
+	p = whyPlan("A - B", 2, syncer.WhyNew, syncer.WhyNew)
+	if a := AlbumsFromPlan(p); a[0].State != TileNew {
+		t.Errorf("state = %v, want NEW", a[0].State)
+	}
+	p = whyPlan("A - B", 3, syncer.WhyNew, syncer.WhyNew)
+	if a := AlbumsFromPlan(p); a[0].State != TileChanged {
+		t.Errorf("two of three new: state = %v, want CHANGED", a[0].State)
+	}
+}
+
 func TestPreviewOfAnEmptyPlan(t *testing.T) {
 	p := whyPlan("A - B", 3)
 	p.Index = syncer.IndexOp{Size: 1000, Records: 3, Unchanged: true}
