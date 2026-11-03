@@ -183,16 +183,18 @@ func TestFreeSpaceReachesTheStatusLine(t *testing.T) {
 func TestDeviceBlockLineOne(t *testing.T) {
 	u := NewUI(Options{})
 	u.SetState(DemoState())
-	if name, model := u.headName(); name != "Brandon's iPod" || model != "iPod Video 5.5G 80 GB" {
+	// The name alone: the model is the Summary tab's, and the title bar is
+	// always "Core".
+	if name, model := u.headName(); name != "Brandon's iPod" || model != "" {
 		t.Errorf("named iPod: %q / %q", name, model)
 	}
-	if got := u.Title(); got != "Brandon's iPod · Core" {
+	if got := u.Title(); got != "Core" {
 		t.Errorf("title = %q", got)
 	}
 	st := DemoState()
 	st.Device.Name = ""
 	u.SetState(st)
-	if name, model := u.headName(); name != "iPod Video 5.5G 80 GB" || model != "" {
+	if name, model := u.headName(); name != "iPod Video 80 GB" || model != "" {
 		t.Errorf("unnamed iPod: %q / %q", name, model)
 	}
 	u.SetState(LookingState())
@@ -206,7 +208,7 @@ func TestDeviceBlockLineOne(t *testing.T) {
 		t.Errorf("looking line 2 = %q", s)
 	}
 	u.SetState(NotInstalledState())
-	if name, model := u.headName(); name != "iPod Video 5.5G 80 GB" || model != "Apple firmware" {
+	if name, model := u.headName(); name != "iPod Video 80 GB" || model != "Apple firmware" {
 		t.Errorf("stock iPod: %q / %q", name, model)
 	}
 	if s, _ := u.statusLine(); s != "74.5 GB" {
@@ -310,5 +312,21 @@ func settleWindow(u *UI) {
 			return
 		}
 		time.Sleep(time.Millisecond)
+	}
+}
+
+// modelShort drops the generation and nothing else; a string in another
+// shape is shown as it is, and an empty one is the default name.
+func TestModelShort(t *testing.T) {
+	for in, want := range map[string]string{
+		"iPod Video 5.5G 80 GB": "iPod Video 80 GB",
+		"iPod Video 5G 30 GB":   "iPod Video 30 GB",
+		"iPod Classic 160GB":    "iPod Classic 160GB",
+		"iPod":                  "iPod",
+		"":                      DefaultDeviceName,
+	} {
+		if got := modelShort(in); got != want {
+			t.Errorf("modelShort(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

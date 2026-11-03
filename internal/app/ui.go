@@ -6,6 +6,7 @@ import (
 	"image"
 	"image/color"
 	"os"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -1348,27 +1349,46 @@ func (u *UI) deviceLines(gtx C, name, model string, nameCol color.NRGBA, weight 
 	)
 }
 
-// headName is line 1 of the device block: what to call this iPod, and the
-// model beside it when the first half is a name the user chose. A name is
-// remembered in config.json against the disk's serial; without one the
-// model IS the name, and saying it twice would be noise.
+// headName is line 1 of the device block: what to call this iPod, and one
+// word beside it when the word changes what the button does ("Apple
+// firmware"). A name is remembered in config.json against the disk's serial
+// and the bar says it alone — the model is a fact for the Summary tab's
+// Hardware row, and beside the name it read as a second name (the first
+// Windows bench; the owner chose "the name alone" from the four options in
+// the header proposals). Without a name the model IS the name, in its short
+// form, "iPod Video 80 GB": the generation goes with "tested" on Summary.
 func (u *UI) headName() (name, model string) {
 	d := u.st.Device
 	if !d.Found {
 		return "No iPod yet", ""
 	}
-	m := strings.TrimSpace(d.Model)
-	if m == "" {
-		m = DefaultDeviceName
-	}
+	m := modelShort(d.Model)
 	if u.st.Phase() == PhaseNotInstalled {
 		return m, "Apple firmware"
 	}
 	if n := strings.TrimSpace(d.Name); n != "" {
-		return n, m
+		return n, ""
 	}
 	return m, ""
 }
+
+// modelShort is the model as the bar says it when it has to: the disk's
+// string with its generation taken out — "iPod Video 5.5G 80 GB" is "iPod
+// Video 80 GB". A string that is not in that shape is shown as it is.
+func modelShort(m string) string {
+	m = strings.TrimSpace(m)
+	if m == "" {
+		return DefaultDeviceName
+	}
+	if g := modelGenRE.FindStringSubmatch(m); g != nil {
+		return g[1] + " " + g[2]
+	}
+	return m
+}
+
+// modelGenRE splits "iPod Video 5.5G 80 GB" into the family and the size,
+// dropping the generation between them.
+var modelGenRE = regexp.MustCompile(`^(.*\S) \d+(?:\.\d+)?G (\d+ ?[GT]B)$`)
 
 // statusLine is line 2 of the device block, and its colour.
 //
@@ -1509,11 +1529,9 @@ func (u *UI) actions(gtx C) D {
 
 // Title is the window's title: the iPod's name while one is connected.
 func (u *UI) Title() string {
-	if !u.st.Device.Found {
-		return "Core"
-	}
-	name, _ := u.headName()
-	return name + " · Core"
+	// Always "Core": the iPod's name is on the bar one line down, and
+	// nobody runs two of these windows.
+	return "Core"
 }
 
 // sourceName is the last element of the music folder, for a line that has
