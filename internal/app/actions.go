@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/BrandonDedolph/core-desktop-app/internal/disk"
+	"github.com/BrandonDedolph/core-desktop-app/internal/doctor"
 	"github.com/BrandonDedolph/core-desktop-app/internal/flasher"
 	"github.com/BrandonDedolph/core-desktop-app/internal/fwpart"
 	"github.com/BrandonDedolph/core-desktop-app/internal/ghrelease"
@@ -203,12 +204,50 @@ func (u *UI) noteSyncWrote(err error) {
 // Cancel — or Close on "Everything is on the iPod" — ends the job with
 // nothing written. The plan's lines go to the log as well, each with its
 // why.
-func (u *UI) startSyncPreview() {
+func (u *UI) startSyncPreview() { u.syncPreview(false, nil) }
+
+// startRepair is the Summary tab's Repair: the sync the iPod's library
+// findings call for — with every cover re-rendered when a cover is one of
+// them — through the same preview, the same checks and the same button as
+// any other sync. The window never patches the iPod by hand; the repair is
+// the write a sync is. The findings go to the log first, with the names
+// behind them.
+func (u *UI) startRepair() {
+	lib := u.st.Library
+	if lib.Repair == doctor.RepairNone {
+		return
+	}
+	var why []string
+	for _, f := range lib.Findings {
+		line := "repair: " + f.Text
+		if len(f.Names) > 0 {
+			line += " (" + strings.Join(f.Names, "; ")
+			if f.N > len(f.Names) {
+				line += fmt.Sprintf("; … and %d more", f.N-len(f.Names))
+			}
+			line += ")"
+		}
+		if f.Repair == doctor.RepairNone {
+			line += " — not a sync's to fix: " + f.Fix
+		}
+		why = append(why, line)
+	}
+	u.syncPreview(lib.Repair == doctor.RepairArt, why)
+}
+
+// syncPreview is startSyncPreview with the two things a repair adds: the
+// covers re-rendered (artRefresh, on the plan and on the sync alike, so the
+// preview's "Covers to render" is what the sync will do) and the lines that
+// say why, logged before the plan.
+func (u *UI) syncPreview(artRefresh bool, why []string) {
 	src := strings.TrimSpace(u.sourceEd.Text())
 	dst := u.st.Device.Volume
 	tooOld := u.st.FirmwareTooOld()
 	set := u.syncSettings()
 	u.start(JobSync, func(ctx context.Context, emit func(Event)) error {
+		for _, w := range why {
+			emit(Event{Kind: EventLog, Text: w})
+		}
 		if src == "" {
 			return fmt.Errorf("no music folder: choose it on the Fix tab")
 		}
@@ -216,6 +255,7 @@ func (u *UI) startSyncPreview() {
 			return fmt.Errorf("no iPod volume: plug the iPod in (disk mode: Select+Play) — this window finds it on its own")
 		}
 		o := set.options(src, dst, emit)
+		o.ArtRefresh = artRefresh
 		dry := o
 		dry.DryRun = true
 		emit(Event{Kind: EventProgress, Text: "working out what to copy", Pct: -1})

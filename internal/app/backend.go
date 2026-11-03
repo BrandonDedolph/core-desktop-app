@@ -320,7 +320,8 @@ func CLIPath() (string, bool) {
 
 // Refresh runs the same read-only checks `core doctor` runs, because
 // the Device card answers the same questions and must not answer them
-// differently.
+// differently — and the library checks on top (doctor.LibraryChecks),
+// which are directory listings and sidecar headers, never a song file.
 func (b *RealBackend) Refresh(ctx context.Context) (Device, Library, error) {
 	dev := doctor.CheckDevice(doctor.DeviceDeps{Missing: doctor.Fail})
 
@@ -364,7 +365,10 @@ func (b *RealBackend) Refresh(ctx context.Context) (Device, Library, error) {
 	// card only when that is actually what went wrong.
 	d.ElevationAdviceNeeded = !d.Elevated && strings.Contains(strings.ToLower(d.Err), "denied")
 
-	vol := doctor.CheckVolume(d.Volume)
+	// The library checks run the volume checks too: one pass, and the
+	// index is read once.
+	libRep := doctor.LibraryChecks(d.Volume)
+	vol := libRep.Volume
 	if d.Volume != "" {
 		d.Boot, d.BootStale = bootWords(doctor.CheckBoot(d.Volume, dev, vol, time.Now()), time.Local)
 	}
@@ -377,6 +381,8 @@ func (b *RealBackend) Refresh(ctx context.Context) (Device, Library, error) {
 		ConfigValid: vol.ConfigValid,
 		LogValid:    vol.LogValid,
 		Note:        vol.Note,
+		Findings:    libRep.Findings,
+		Repair:      libRep.Repair(),
 	}
 	return d, lib, nil
 }

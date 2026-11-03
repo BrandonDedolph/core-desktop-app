@@ -254,6 +254,7 @@ type UI struct {
 
 	browseBtn                                   widget.Clickable
 	dryRunBtn, pruneBtn                         widget.Clickable
+	repairBtn                                   widget.Clickable
 	checkBtn, updateBtn, flashBtn, flashOpenBtn widget.Clickable
 	backupBtn, ejectBtn, copyBtn                widget.Clickable
 	nameClick, nameSaveBtn, nameCancelBtn       widget.Clickable
@@ -940,6 +941,10 @@ func (u *UI) events(gtx C) {
 		}
 		if u.pruneBtn.Clicked(gtx) {
 			u.startSync(JobSyncPrune)
+		}
+		if u.repairBtn.Clicked(gtx) {
+			// The sync the library's findings call for, through the preview.
+			u.startRepair()
 		}
 		if u.checkBtn.Clicked(gtx) {
 			u.startCheck()
