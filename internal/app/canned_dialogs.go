@@ -14,7 +14,7 @@ import (
 // DialogKinds are the dialogs `core-app --screenshot --dialog KIND` can
 // put on screen, for review. They are drawn and nothing else: a canned
 // dialog has no job behind it, so nothing can be confirmed through one.
-var DialogKinds = []string{"write", "holding", "remove", "about", "album", "preview", "settings", "chooser", "ipodlog"}
+var DialogKinds = []string{"write", "holding", "remove", "about", "album", "preview", "settings", "chooser", "ipodlog", "albumedit"}
 
 // cannedDialog builds one of DialogKinds against the state's device.
 func cannedDialog(u *UI, kind string) error {
@@ -49,9 +49,9 @@ func cannedDialog(u *UI, kind string) error {
 	case "about":
 		u.showAbout()
 		return nil
-	case "album":
+	case "album", "albumedit":
 		// The sheet on Remain in Light (or a real library's hero album),
-		// its third track playing.
+		// its third track playing — and, for albumedit, its Edit… open.
 		if u.st.NowPlaying == nil {
 			setDemoPlaying(&u.st)
 		}
@@ -61,6 +61,9 @@ func cannedDialog(u *UI, kind string) error {
 				"(with --source: no album with %d+ tracks and a square embedded cover)", heroTracks)
 		}
 		u.openSheet(u.st.Albums[np.AlbumIndex])
+		if kind == "albumedit" {
+			u.sheet.edit = newAlbumEdit(cannedAlbumTags(u.sheet.album, u.sheet.tracks))
+		}
 		return nil
 	case "settings":
 		u.openSettings()
@@ -182,4 +185,17 @@ func (u *UI) cannedChooser() {
 	d.selPath = at + `\Talking Heads - Remain in Light`
 	c.setListing(d)
 	u.chooser = c
+}
+
+// cannedAlbumTags is the editor's fields for a canned album: the titles and
+// numbers its tracklist has, the album and artist its title has, and a genre
+// that differs between the tracks, so the review shows that hint too.
+func cannedAlbumTags(a Album, tracks []Track) albumTags {
+	at := albumTags{Album: tileTitle(a), AlbumArtist: albumArtist(a), Year: "1980",
+		Mixed: map[string]bool{"genre": true}}
+	for _, t := range tracks {
+		at.Tracks = append(at.Tracks, trackTags{Path: t.Path, Title: t.Title, Artist: albumArtist(a),
+			Number: itoa(t.Number)})
+	}
+	return at
 }

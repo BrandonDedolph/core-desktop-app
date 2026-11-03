@@ -30,8 +30,9 @@ import (
 // carries it, and opening the playing album again shows it live.
 //
 // It is a panel over the window with the dialogs' chrome, not a dialog: it
-// asks nothing, so it has one button (Close), and Esc or a click outside it
-// closes it too.
+// asks nothing, so it has Close (Esc or a click outside it closes it too)
+// and Edit…, which turns the tracklist into the album's tags in fields
+// (album_edit.go).
 
 // audio is what the app needs of internal/player. A test passes its own.
 type audio interface {
@@ -62,6 +63,16 @@ type albumSheet struct {
 	list                   widget.List
 	closeBtn, scrim, block widget.Clickable
 	folderBtn              widget.Clickable
+
+	// Edit… (album_edit.go): editBtn opens the fields, editLoading is the
+	// read of the tags in flight, edit the open editor. note is the foot's
+	// line about the last edit (saved, nothing changed, could not read);
+	// stopped is the track a Save stopped, for that line.
+	editBtn     widget.Clickable
+	editLoading bool
+	edit        *albumEdit
+	note        string
+	stopped     string
 }
 
 // tracksResult is ReadTracks's answer for one folder, crossing back from
@@ -157,13 +168,30 @@ func (u *UI) sheetEvents(gtx C) {
 			break
 		}
 		if ke, ok := ev.(key.Event); ok && ke.State == key.Press {
+			if s.edit != nil {
+				// Esc leaves the fields, not the sheet: typing is not
+				// lost to a reflex.
+				u.cancelEdit()
+				return
+			}
 			u.closeSheet()
 			return
 		}
 	}
+	if s.edit != nil {
+		// While the fields are open a click outside does nothing, and
+		// the tracks do not play: Cancel and Save are the way out.
+		s.scrim.Clicked(gtx)
+		s.block.Clicked(gtx)
+		u.editEvents(gtx)
+		return
+	}
 	if s.closeBtn.Clicked(gtx) || s.scrim.Clicked(gtx) {
 		u.closeSheet()
 		return
+	}
+	if s.editBtn.Clicked(gtx) {
+		u.startEdit()
 	}
 	s.block.Clicked(gtx) // a click on the panel is not a click outside it
 	if s.folderBtn.Clicked(gtx) {
@@ -235,10 +263,18 @@ func (u *UI) sheetBody(gtx C) D {
 	head := u.sheetHead(g)
 	headC := hm.Stop()
 	fm := op.Record(gtx.Ops)
-	foot := u.sheetFoot(g)
+	var foot D
+	if u.sheet.edit != nil {
+		foot = u.editFoot(g)
+	} else {
+		foot = u.sheetFoot(g)
+	}
 	footC := fm.Stop()
 
 	want := u.listHeight(gtx)
+	if u.sheet.edit != nil {
+		want = u.editHeight(gtx)
+	}
 	room := gtx.Constraints.Max.Y - 2*in - head.Size.Y - foot.Size.Y - 2*gap
 	if room < gtx.Dp(rowH) {
 		room = gtx.Dp(rowH)
@@ -260,7 +296,11 @@ func (u *UI) sheetBody(gtx C) D {
 	lg := gtx
 	lg.Constraints = layout.Exact(image.Pt(innerW, listH))
 	lm := op.Record(gtx.Ops)
-	u.trackList(lg)
+	if u.sheet.edit != nil {
+		u.editForm(lg)
+	} else {
+		u.trackList(lg)
+	}
 	place(lm.Stop(), listH)
 	y += gap
 	place(footC, foot.Size.Y)
@@ -542,6 +582,10 @@ func (u *UI) sheetFoot(gtx C) D {
 			// The whole width, whatever it holds: Close stays at the right.
 			var d D
 			switch {
+			case s.note != "":
+				d = u.wrapN(12, u.pal.Ink, s.note, 3)(gtx)
+			case s.editLoading:
+				d = u.text(12, u.pal.Muted2, "Reading the tags…")(gtx)
 			case u.warning() != "":
 				d = u.wrapN(12, u.pal.Accent, u.warning(), 2)(gtx)
 			case !player.Available:
@@ -553,8 +597,19 @@ func (u *UI) sheetFoot(gtx C) D {
 			return d
 		}),
 		layout.Rigid(layout.Spacer{Width: unit.Dp(16)}.Layout),
-		layout.Rigid(func(gtx C) D { return u.button(gtx, btn{&s.closeBtn, "Close", false, true}) }),
+		layout.Rigid(func(gtx C) D {
+			return u.buttonRow(gtx, btn{&s.editBtn, "Edit…", false, u.canEdit()},
+				btn{&s.closeBtn, "Close", false, true})
+		}),
 	)
+}
+
+// canEdit is whether Edit… is live: the tracklist is in, it is made of real
+// files (a canned state's is not), and nothing else is writing the library.
+func (u *UI) canEdit() bool {
+	s := u.sheet
+	return s != nil && s.loaded && s.err == "" && len(s.tracks) > 0 && s.tracks[0].Path != "" &&
+		!s.editLoading && !u.st.Busy()
 }
 
 // rowBars is the playing row's bars in its number column: the firmware's

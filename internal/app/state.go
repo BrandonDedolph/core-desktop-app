@@ -66,6 +66,9 @@ const (
 	// JobAppUpdate is ··· → Update the app: this program replaced by a
 	// newer release of itself.
 	JobAppUpdate
+	// JobEditTags is the album sheet's Save: one album's tags written,
+	// then its names made to match.
+	JobEditTags
 )
 
 // String is the label shown in the status line and written into the
@@ -108,6 +111,8 @@ func (k JobKind) String() string {
 		return "writing a cover"
 	case JobAppUpdate:
 		return "app update"
+	case JobEditTags:
+		return "saving the tags"
 	default:
 		return "idle"
 	}

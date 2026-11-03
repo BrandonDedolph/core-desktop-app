@@ -129,6 +129,32 @@ type fakeBackend struct {
 	// applyCalls is every ApplyCover; coverFail makes it fail.
 	applyCalls []applyCall
 	coverFail  string
+
+	// editCalls is every EditTags; editResult and editErr are its answer.
+	editCalls  []editCall
+	editResult *librarian.EditResult
+	editErr    error
+}
+
+type editCall struct {
+	root, dir, after string
+	edits            []librarian.TagEdit
+}
+
+// EditTags records the Save and answers with editResult (by default: every
+// edit written, nothing renamed, a journal).
+func (f *fakeBackend) EditTags(ctx context.Context, root, dir string, edits []librarian.TagEdit, after string,
+	emit func(Event)) (*librarian.EditResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.editCalls = append(f.editCalls, editCall{root, dir, after, edits})
+	if f.editErr != nil {
+		return nil, f.editErr
+	}
+	if f.editResult != nil {
+		return f.editResult, nil
+	}
+	return &librarian.EditResult{Journal: "/journal/edit-fix.json", Written: len(edits), Dir: dir}, nil
 }
 
 func (f *fakeBackend) Inspect(ctx context.Context, src string, discFolders bool,

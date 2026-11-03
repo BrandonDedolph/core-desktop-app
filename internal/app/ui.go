@@ -200,6 +200,10 @@ type UI struct {
 	sheet     *albumSheet
 	audio     audio
 	newTracks *tracksResult
+	// newTags and newEdit are Edit…'s two answers: the tags read for
+	// the fields, and what Save did.
+	newTags   *tagsRead
+	newEdit   *editResult
 	trackDone bool
 	trackErr  error
 	// npLive says State.NowPlaying is the player's (a canned state's is
@@ -581,6 +585,8 @@ func (u *UI) drain() {
 	u.newTracks, u.trackDone, u.trackErr = nil, false, nil
 	devLog := u.newDevLog
 	u.newDevLog = nil
+	tagsIn, edited := u.newTags, u.newEdit
+	u.newTags, u.newEdit = nil, nil
 	u.mu.Unlock()
 
 	if devLog != nil {
@@ -589,6 +595,9 @@ func (u *UI) drain() {
 
 	if tracks != nil {
 		u.applyTracks(tracks)
+	}
+	if tagsIn != nil {
+		u.applyTagsRead(tagsIn)
 	}
 	if playErr != nil {
 		u.trackFailed(playErr)
@@ -722,6 +731,9 @@ func (u *UI) drain() {
 		src := u.st.Source
 		u.later(func() { u.startInspect(src) })
 		u.later(func() { u.startSync(JobDryRun) })
+	}
+	if edited != nil {
+		u.editSaved(edited)
 	}
 	if undone != nil {
 		u.st.Journal = ""
