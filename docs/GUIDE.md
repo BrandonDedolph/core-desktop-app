@@ -68,12 +68,18 @@ shows it within two seconds.
   genres · index valid" when nothing is wrong, or what is — an album with no cover, a song in the
   index that is not on the iPod, a playlist entry that points at nothing, a settings file or log
   the iPod would refuse — one line each, up to four. *Repair* is a sync, through the same preview
-  as *Sync N albums* (and with every cover rendered again when a cover is one of the problems):
-  the window never patches the iPod by hand. A problem no sync fixes — a torn On-The-Go save, a
+  as *Sync N albums* (a sync renders the covers that are missing): the window never patches the
+  iPod by hand. A problem no sync fixes — a torn On-The-Go save, a
   library over the iPod's limits — has no *Repair* and its line says what does fix it.
-- **The log** is behind **···** → *Show the log* (or Ctrl+L): a drawer with everything the window
-  did, with *Copy* and *Clear*. When a job fails, its status line in the header says so and opens
-  the log when you click it.
+- **The log** is behind **···** → *Show the log* (or Ctrl+L): a drawer with two tabs. *This
+  window* is everything the window did, with *Copy* and *Clear*. When a job fails, its status line
+  in the header says so and opens the log when you click it. *The iPod* is the iPod's own log
+  (`CORELOG.BIN`), newest start first, each start headed by the build it ran and the time its
+  clock read; *Copy* copies it. It is read when you open the tab and with every refresh, never
+  while a sync or a flash is writing, and nothing here changes it. The iPod saves its newest lines
+  when it sleeps, switches off or goes into disk mode (and every 2 KB in between), so the last
+  few lines of a start appear once it has done one of those.
+  The window remembers which tab you were on until it closes.
 - **···** holds the rest: back up the firmware, flash an image file, read the iPod again, check for
   updates, show or copy the log, open the music folder, *Settings…* and About — and, when a newer
   release of the app is out, *Update the app to vX.Y.Z* (see **Updating the app** below).
